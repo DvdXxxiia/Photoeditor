@@ -15,6 +15,8 @@
           <div>
             <strong>Office Applications</strong>
             <p>Photo Editor · identify, edit, delete, and draw</p>
+            <strong>Photo Editor</strong>
+            <p>Identify, edit, copy, and draw</p>
           </div>
         </a>
         <nav class="app-nav" aria-label="Applications">
@@ -87,6 +89,8 @@
             <p class="hint" id="objectHint">Identify names objects with a vision model (Florence-2 or GPT-4o). Wand and box still add extra regions.</p>
             <ul id="objectList" class="object-list"></ul>
             <div class="row-actions">
+              <button id="copyBtn" class="btn" disabled title="Ctrl+C">Copy</button>
+              <button id="pasteBtn" class="btn" disabled title="Ctrl+V">Paste</button>
               <button id="deleteBtn" class="btn btn-danger" disabled>Delete object</button>
             </div>
           </section>

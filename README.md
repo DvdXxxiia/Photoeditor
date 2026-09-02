@@ -33,11 +33,12 @@ You can still add extra regions with the magic wand or box tool.
 - **Upload** a JPG, PNG, or similar image (drag and drop works too).
 - **Identify objects** to outline things the detector finds.
 - **Select** an object, then change brightness, contrast, saturation, blur, grayscale, pixelate, invert, sharpen, or tint.
+- **Copy / Paste** a selected object onto the photo (`Ctrl+C` / `Ctrl+V`). Paste offsets the duplicate; `Ctrl+click` the photo to place it.
 - **Delete** a selected object; the hole is filled in with inpainting.
 - **Draw** and **erase** on a separate layer. Download keeps the drawing. **Merge drawing** bakes it into the photo.
 - **Undo / Redo** photo edits (not the live brush strokes).
 
-Keyboard: `V` select, `W` wand, `M` box, `B` brush, `E` eraser, `Ctrl+Z` undo, `Delete` remove object.
+Keyboard: `V` select, `W` wand, `M` box, `B` brush, `E` eraser, `Ctrl+C` copy, `Ctrl+V` paste, `Ctrl+Z` undo, `Delete` remove object.
 
 ## PDF Compare
 

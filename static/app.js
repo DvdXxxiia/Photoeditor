@@ -6,6 +6,7 @@
     filename: "photo.png",
     objects: [],
     selectedId: null,
+    canPaste: false,
     tool: "select",
     drawing: false,
     lastPoint: null,
@@ -20,6 +21,8 @@
     undoBtn: document.getElementById("undoBtn"),
     redoBtn: document.getElementById("redoBtn"),
     downloadBtn: document.getElementById("downloadBtn"),
+    copyBtn: document.getElementById("copyBtn"),
+    pasteBtn: document.getElementById("pasteBtn"),
     deleteBtn: document.getElementById("deleteBtn"),
     clearDrawBtn: document.getElementById("clearDrawBtn"),
     flattenBtn: document.getElementById("flattenBtn"),
@@ -84,12 +87,15 @@
     if (state.selectedId && !state.objects.some((o) => o.id === state.selectedId)) {
       state.selectedId = null;
     }
+    state.canPaste = Boolean(data.can_paste);
     els.undoBtn.disabled = !data.can_undo;
     els.redoBtn.disabled = !data.can_redo;
     els.identifyBtn.disabled = false;
     els.downloadBtn.disabled = false;
     els.clearDrawBtn.disabled = false;
     els.flattenBtn.disabled = false;
+    els.copyBtn.disabled = !state.selectedId;
+    els.pasteBtn.disabled = !state.canPaste;
     els.deleteBtn.disabled = !state.selectedId;
     els.adjustSection.classList.toggle("disabled-block", !state.selectedId);
     renderObjects();
@@ -102,7 +108,7 @@
       els.objectHint.textContent = "Identify separate objects, or add one with the wand or box tool.";
       return;
     }
-    els.objectHint.textContent = `${state.objects.length} object${state.objects.length === 1 ? "" : "s"} found. Click one to edit or delete it.`;
+    els.objectHint.textContent = `${state.objects.length} object${state.objects.length === 1 ? "" : "s"} found. Click one to edit, copy, or delete it.`;
     for (const obj of state.objects) {
       const li = document.createElement("li");
       li.className = obj.id === state.selectedId ? "selected" : "";
@@ -245,10 +251,53 @@
 
   async function selectObject(id) {
     state.selectedId = id;
+    els.copyBtn.disabled = !id;
     els.deleteBtn.disabled = !id;
     els.adjustSection.classList.toggle("disabled-block", !id);
     renderObjects();
     refreshImages();
+  }
+
+  async function copySelected() {
+    if (!state.sessionId || !state.selectedId) return;
+    try {
+      const data = await api(`/api/session/${state.sessionId}/copy`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ object_id: state.selectedId }),
+      });
+      applySession(data);
+      const obj = state.objects.find((o) => o.id === state.selectedId);
+      const name = obj ? obj.label : "object";
+      setStatus(`Copied ${name}. Paste (Ctrl+V) or Ctrl+click the photo to place it.`);
+    } catch (err) {
+      setStatus(err.message);
+    }
+  }
+
+  async function pasteClipboard(point) {
+    if (!state.sessionId || !state.canPaste) return;
+    const payload = {};
+    if (point) {
+      payload.x = point.x;
+      payload.y = point.y;
+    }
+    setBusy(true, "Pasting…");
+    try {
+      const data = await api(`/api/session/${state.sessionId}/paste`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      applySession(data);
+      refreshImages();
+      const obj = state.objects.find((o) => o.id === state.selectedId);
+      setStatus(obj ? `Pasted ${obj.label}.` : "Pasted object.");
+    } catch (err) {
+      setStatus(err.message);
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function modify(operation, amount, extra = {}) {
@@ -420,6 +469,10 @@
     event.preventDefault();
     els.uiCanvas.setPointerCapture(event.pointerId);
     const pt = imagePoint(event, els.uiCanvas);
+    if ((event.ctrlKey || event.metaKey) && state.canPaste) {
+      await pasteClipboard(pt);
+      return;
+    }
     if (state.tool === "brush" || state.tool === "eraser") {
       state.drawing = true;
       state.lastPoint = pt;
@@ -490,6 +543,8 @@
   els.undoBtn.addEventListener("click", () => undoRedo("undo"));
   els.redoBtn.addEventListener("click", () => undoRedo("redo"));
   els.downloadBtn.addEventListener("click", download);
+  els.copyBtn.addEventListener("click", copySelected);
+  els.pasteBtn.addEventListener("click", () => pasteClipboard());
   els.deleteBtn.addEventListener("click", deleteSelected);
   els.clearDrawBtn.addEventListener("click", () => {
     drawCtx.clearRect(0, 0, els.drawCanvas.width, els.drawCanvas.height);
@@ -511,13 +566,23 @@
   window.addEventListener("keydown", (event) => {
     if (["INPUT", "TEXTAREA"].includes(event.target.tagName)) return;
     const key = event.key.toLowerCase();
-    if ((event.ctrlKey || event.metaKey) && key === "z") {
-      event.preventDefault();
-      undoRedo(event.shiftKey ? "redo" : "undo");
-    } else if ((event.ctrlKey || event.metaKey) && key === "y") {
-      event.preventDefault();
-      undoRedo("redo");
-    } else if (key === "delete" || key === "backspace") {
+    if (event.ctrlKey || event.metaKey) {
+      if (key === "z") {
+        event.preventDefault();
+        undoRedo(event.shiftKey ? "redo" : "undo");
+      } else if (key === "y") {
+        event.preventDefault();
+        undoRedo("redo");
+      } else if (key === "c") {
+        event.preventDefault();
+        copySelected();
+      } else if (key === "v") {
+        event.preventDefault();
+        pasteClipboard();
+      }
+      return;
+    }
+    if (key === "delete" || key === "backspace") {
       if (state.selectedId) {
         event.preventDefault();
         deleteSelected();
