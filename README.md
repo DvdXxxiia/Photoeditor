@@ -24,14 +24,20 @@ Upload `Quote_A.pdf` and `Quote_B.pdf`. The app:
 
 1. Reads digital PDFs with **pdfplumber** and **PyMuPDF**, uses OCR when text is missing, and prefers **Azure Document Intelligence** when `AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT` and `AZURE_DOCUMENT_INTELLIGENCE_KEY` are set.
 2. Returns structured quote JSON: `vendor`, `quote_number`, `date`, `items`.
-3. For injection-molding tool quotes, matches parts by part number/name and compares every part across:
-   - configuration, insulation, demolding, inserts, compression, sliders, and gating
-   - PUR, PUR sealing, surface finishing, FIM, and tool temperature
-   - price, options, and lead time
-4. Compares tryout costs separately at the end.
-5. Compares vendor payment terms, delivery terms, warranty, quote validity, and currency.
-6. Also supports equipment line-item matching with embeddings + a plastics equipment catalog (`GMP180` Dryer = `Drying Unit GMP-180`).
-7. Lets you ask about technical differences, tryout cost, or vendor terms.
+3. Acts as a senior injection-molding tooling sourcing engineer and creates a normalized matrix before any summary:
+   - configuration, cavities, steel grades, mold base, hot runner supplier/drops
+   - insulation, demolding, inserts, compression, sliders/lifters, gating
+   - PUR, PUR sealing, surface finish/texture, FIM, temperature control
+   - validation, included/excluded scope, tool warranty, options, and lead time
+4. Every value includes its exact source quote and page number. Missing values display **Not specified**.
+5. Compares cost by part, tool subtotal, options, engineering changes, shipping, spare parts, and total quoted value.
+6. Compares included tryouts, T0/T1/T2, extra tryouts, sampling, travel, and total tryout cost.
+7. Compares payment, warranty, ownership, maintenance, storage, design review, change management, and liabilities.
+8. Generates risks and a vendor recommendation only after the normalized matrices are built.
+9. Also supports equipment line-item matching with embeddings + a plastics equipment catalog (`GMP180` Dryer = `Drying Unit GMP-180`).
+10. Lets you ask about technical differences, tryout cost, or vendor terms.
+
+The analysis deliberately ignores filenames, document names, image counts, and document metadata.
 
 Compare-by-function example: `PTUN2500 + GMP180` vs `PTUN2000 + GMP250` is treated as the same drying/storage system with different capacity, not as unrelated text.
 

@@ -65,7 +65,7 @@ def test_compare_quote_pdfs_dashboard():
     assert "vacuum receiver" in missing or "installation" in missing
     added = " ".join(row["right"]["description"] for row in payload["added_in_right"]).lower()
     assert "dew point" in added
-    assert payload["drawings"]["highlights"]
+    assert "drawings" not in payload
     assert "lower cost" in payload["summary"]["headline"].lower() or "lower" in payload["summary"]["headline"].lower()
 
 

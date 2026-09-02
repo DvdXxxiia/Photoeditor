@@ -14,7 +14,7 @@
           <span class="brand-mark" aria-hidden="true"></span>
           <div>
             <strong>Office Applications</strong>
-            <p>Compare quotes by function and commercial impact</p>
+            <p>Injection mold sourcing analysis by part and scope</p>
           </div>
         </a>
         <nav class="app-nav" aria-label="Applications">
@@ -31,9 +31,9 @@
         <div class="quote-toolbar">
           <label class="project-field">
             Project
-            <input id="projectName" type="text" value="Dryer package" placeholder="Project name" />
+            <input id="projectName" type="text" value="Injection mold sourcing" placeholder="Project name" />
           </label>
-          <p class="hint">Upload two vendor quotes. Matching uses equipment meaning (GMP180 vs Drying Unit GMP-180), not just identical wording.</p>
+          <p class="hint">Upload two tooling quotations. The analyst builds a normalized per-part matrix before evaluating costs or recommending a vendor.</p>
         </div>
         <div class="pdf-panes">
           <section class="pdf-pane">
@@ -75,6 +75,44 @@
               </div>
             </div>
           </article>
+          <section id="sourcingResults" class="molding-results hidden">
+            <article class="result-card">
+              <h2>Sourcing recommendation</h2>
+              <div id="sourcingSummary" class="sourcing-summary"></div>
+            </article>
+            <article class="result-card">
+              <h2>Normalized comparison matrix</h2>
+              <p class="hint">Exact source evidence and page number are shown under every extracted value.</p>
+              <div id="sourcingParts" class="part-comparisons"></div>
+            </article>
+            <article class="result-card">
+              <h2>Cost comparison</h2>
+              <div class="table-wrap">
+                <table class="quote-table sourcing-table" id="sourcingCosts">
+                  <thead><tr><th>Cost</th><th>Vendor A</th><th>Vendor B</th><th>Difference</th><th>Higher scope</th><th>Impact</th></tr></thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </article>
+            <article class="result-card">
+              <h2>Tryout cost comparison</h2>
+              <div class="table-wrap">
+                <table class="quote-table sourcing-table" id="sourcingTryouts">
+                  <thead><tr><th>Tryout item</th><th>Vendor A</th><th>Vendor B</th><th>Difference</th><th>Higher scope</th><th>Impact</th></tr></thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </article>
+            <article class="result-card">
+              <h2>Commercial terms comparison</h2>
+              <div class="table-wrap">
+                <table class="quote-table sourcing-table" id="sourcingTerms">
+                  <thead><tr><th>Term</th><th>Vendor A</th><th>Vendor B</th><th>Difference</th><th>Higher scope</th><th>Impact</th></tr></thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </article>
+          </section>
           <section id="moldingResults" class="molding-results hidden">
             <article class="result-card">
               <h2>Injection-molding parts comparison</h2>
@@ -130,10 +168,6 @@
             <p class="hint" id="functionShared"></p>
           </article>
           <article class="result-card">
-            <h2>Visual / drawing differences</h2>
-            <ul id="drawings"></ul>
-          </article>
-          <article class="result-card">
             <h2>Savings detector</h2>
             <ul id="savings"></ul>
           </article>
@@ -142,7 +176,7 @@
             <h2>Procurement assistant</h2>
             <div id="chatLog" class="chat-log"></div>
             <form id="chatForm" class="chat-form">
-              <input id="chatInput" type="text" placeholder="Compare tryout cost or payment terms" />
+              <input id="chatInput" type="text" placeholder="Which vendor has higher technical scope?" />
               <button class="btn btn-primary" type="submit">Ask</button>
             </form>
           </article>

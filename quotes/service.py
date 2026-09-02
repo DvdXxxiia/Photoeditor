@@ -10,11 +10,11 @@ from quotes.assistant import llm_summary, local_summary
 from quotes.catalog import lookup_equipment
 from quotes.compare import commercial_rows, function_compare, savings_alerts, totals
 from quotes.db import Comparison, Equipment, LineItem, Project, Quote, Vendor, session
-from quotes.drawings import compare_drawings
 from quotes.ingest import ingest_pdf
 from quotes.match import match_items
 from quotes.molding import compare_mold_quotes, parse_mold_quote
 from quotes.parse import ParsedQuote, parse_quote
+from quotes.sourcing import build_normalized_comparison, extract_sourcing_quote
 
 
 def _vendor_id(db, name: str | None) -> int | None:
@@ -83,6 +83,9 @@ def compare_quote_pdfs(
     right_doc = ingest_pdf(right_data, right_name)
     left = parse_quote(left_doc)
     right = parse_quote(right_doc)
+    left_sourcing = extract_sourcing_quote(left_doc)
+    right_sourcing = extract_sourcing_quote(right_doc)
+    sourcing = build_normalized_comparison(left_sourcing, right_sourcing)
     left_mold = parse_mold_quote(left_doc.text, left_doc.tables)
     right_mold = parse_mold_quote(right_doc.text, right_doc.tables)
     molding = compare_mold_quotes(left_mold, right_mold)
@@ -91,6 +94,19 @@ def compare_quote_pdfs(
         right.vendor = right.vendor or right_mold.vendor
         left.total = left_mold.tooling_total
         right.total = right_mold.tooling_total
+    if sourcing["detected"]:
+        left.vendor = sourcing["vendors"]["left"] or left.vendor
+        right.vendor = sourcing["vendors"]["right"] or right.vendor
+        source_cost_a = next(
+            (row["left"] for row in sourcing["costs"] if row["key"] == "total_quoted_value"),
+            None,
+        )
+        source_cost_b = next(
+            (row["right"] for row in sourcing["costs"] if row["key"] == "total_quoted_value"),
+            None,
+        )
+        left.total = float(source_cost_a or left.total)
+        right.total = float(source_cost_b or right.total)
     matches = match_items(left.items, right.items)
     paired, missing, added = commercial_rows(matches)
     payload = {
@@ -101,13 +117,29 @@ def compare_quote_pdfs(
         "missing_in_right": missing,
         "added_in_right": added,
         "functions": function_compare(left, right),
-        "drawings": compare_drawings(left_doc, right_doc),
         "savings": savings_alerts(right),
         "ingest": {"left": left_doc.backend, "right": right_doc.backend},
         "molding": molding,
+        "sourcing": sourcing,
     }
-    summary = llm_summary(left, right, payload) or local_summary(left, right, payload)
-    if molding["detected"]:
+    if sourcing["detected"]:
+        sourcing_summary = sourcing["summary"]
+        summary = {
+            "headline": f"Recommended vendor: {sourcing_summary['recommended_vendor']}.",
+            "recommendation": (
+                f"Lowest tool cost: {sourcing_summary['lowest_tool_cost']}. "
+                f"Lowest tryout cost: {sourcing_summary['lowest_tryout_cost']}. "
+                f"Best technical scope: {sourcing_summary['best_technical_scope']}."
+            ),
+            "both_quoted": [part["part"] for part in sourcing["parts"]],
+            "left_includes": [],
+            "right_includes": [],
+            "right_excludes": sourcing_summary["missing_from_vendor_b"],
+            "backend": "normalized-sourcing-matrix",
+        }
+    else:
+        summary = llm_summary(left, right, payload) or local_summary(left, right, payload)
+    if molding["detected"] and not sourcing["detected"]:
         costs_a = molding["left"]["total_with_tryout"]
         costs_b = molding["right"]["total_with_tryout"]
         delta = costs_b - costs_a

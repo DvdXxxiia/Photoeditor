@@ -48,6 +48,10 @@ Date: 2026-09-01
 Part: Door Panel
 Part Number: DP-100
 Configuration: 1+1 cavity, P20 steel
+Number of Cavities: 2
+Steel Grades: P20 mold plates / H13 inserts
+Mold Base: HASCO standard
+Hot Runner: Mold-Masters, 4 drops
 Insulation: 12 mm insulation plate
 Demolding: 16 ejector pins
 Inserts: 2 interchangeable inserts
@@ -59,6 +63,10 @@ PUR Sealing: Silicone sealing groove
 Surface Finishing: VDI 27 texture
 FIM: Film insert molding ready
 Tool Temperature: 80 C
+Validation Scope: Moldflow, dimensional report, and T0/T1 samples
+Included Scope: Tool design, electrodes, gauges, and first-year maintenance
+Excluded Scope: Production resin and plant utilities
+Tool Warranty: 1,000,000 shots
 Price: $120,000
 Options: Spare insert set included
 Lead Time: 18 weeks
@@ -66,6 +74,10 @@ Lead Time: 18 weeks
 Part: Console Bezel
 Part Number: CB-210
 Configuration: 1 cavity, H13 inserts
+Number of Cavities: 1
+Steel Grades: P20 / H13
+Mold Base: HASCO standard
+Hot Runner: Yudo, 2 drops
 Insulation: Standard insulation plate
 Demolding: Ejector pins
 Inserts: Fixed inserts
@@ -77,14 +89,43 @@ PUR Sealing: Not included
 Surface Finishing: High polish
 FIM: Not included
 Tool Temperature: 70 C
+Validation Scope: T0 and T1 samples
+Included Scope: Tool design and gauges
+Excluded Scope: Resin
+Tool Warranty: 750,000 shots
 Price: $82,500
 Options: None
 Lead Time: 16 weeks
 
-Tryout Cost: $14,000
+Cost Comparison:
+Tool Cost Subtotal: $202,500
+Optional Costs: $0
+Engineering Changes: $3,000
+Shipping: $8,000
+Spare Parts: $5,000
+Total Quoted Value: $218,500
+
+Tryout Costs:
+Number of Tryouts Included: 3
+T0 Cost: $4,000
+T1 Cost: $4,000
+T2 Cost: $3,000
+Additional Tryout Cost: $3,500
+Sampling Cost: $2,000
+Travel Cost: $1,000
+Total Tryout Cost: $14,000
+
+Commercial Terms:
+Overall Lead Time: 18 weeks
 Payment Terms: 30% order / 40% design / 30% acceptance
 Delivery Terms: DDP plant
 Warranty: 2 years or 1 million shots
+Tool Ownership: Customer after final payment
+Maintenance Responsibility: Vendor for first year
+Tool Storage: 24 months included
+Design Review Process: Weekly reviews with customer approval
+Change Management Process: Written ECN and customer approval
+Penalties or Liabilities: 0.5% per late week, capped at 5%
 Quote Validity: 60 days
 Currency: USD
 """
@@ -97,6 +138,10 @@ Date: 2026-09-04
 Part: Door panel assembly
 Part Number: DP100
 Configuration: 1+1 cavity, P20 steel
+Number of Cavities: 4
+Steel Grades: 1.2311 plates / 1.2344 inserts
+Mold Base: DME standard
+Hot Runner: Yudo, 4 drops
 Insulation: 8 mm insulation plate
 Demolding: 12 ejector pins
 Inserts: 2 interchangeable inserts
@@ -108,6 +153,10 @@ PUR Sealing: EPDM sealing groove
 Surface Finish: VDI 30 texture
 FIM: Film insert molding ready
 Mold Temperature: 90 C
+Validation Scope: T0 samples only
+Included Scope: Tool design and electrodes
+Excluded Scope: Gauges, resin, and preventive maintenance
+Tool Warranty: 500,000 shots
 Price: $116,000
 Options: Spare insert set optional $4,500
 Lead Time: 20 weeks
@@ -115,6 +164,10 @@ Lead Time: 20 weeks
 Part: Console Bezel
 Part Number: CB-210
 Configuration: 1 cavity, H13 inserts
+Number of Cavities: 1
+Steel Grades: P20 / H13
+Mold Base: DME standard
+Hot Runner: Yudo, 2 drops
 Insulation: Standard insulation plate
 Demolding: Ejector pins
 Inserts: Fixed inserts
@@ -126,14 +179,43 @@ PUR Sealing: Not included
 Surface Finishing: High polish
 FIM: Not included
 Tool Temperature: 70 C
+Validation Scope: T0 samples only
+Included Scope: Tool design
+Excluded Scope: Gauges and resin
+Tool Warranty: 500,000 shots
 Price: $79,000
 Options: Spare wear parts included
 Lead Time: 15 weeks
 
-Try-out Cost: $18,500
+Cost Comparison:
+Tool Cost Subtotal: $195,000
+Optional Costs: $7,500
+Engineering Changes: $5,000
+Shipping: $12,000
+Spare Parts: $4,000
+Total Quoted Value: $223,500
+
+Tryout Costs:
+Number of Tryouts Included: 2
+T0 Cost: $5,000
+T1 Cost: $5,000
+T2 Cost: Not included
+Additional Tryout Cost: $4,500
+Sampling Cost: $2,500
+Travel Cost: $1,500
+Total Tryout Cost: $18,500
+
+Commercial Terms:
+Overall Lead Time: 20 weeks
 Payment Terms: 40% order / 40% first trial / 20% acceptance
 Delivery Terms: EXW toolmaker
 Warranty: 1 year or 500,000 shots
+Tool Ownership: Customer after full payment and collection
+Maintenance Responsibility: Customer
+Tool Storage: 6 months included
+Design Review Process: Reviews at 40% and 90% design
+Change Management Process: Changes billed at hourly rate
+Penalties or Liabilities: None
 Quote Validity: 30 days
 Currency: USD
 """
