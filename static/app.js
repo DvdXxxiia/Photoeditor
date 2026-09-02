@@ -99,7 +99,7 @@
   function renderObjects() {
     els.objectList.innerHTML = "";
     if (!state.objects.length) {
-      els.objectHint.textContent = "Identify objects or select a region with the wand or box tool.";
+      els.objectHint.textContent = "Identify separate objects, or add one with the wand or box tool.";
       return;
     }
     els.objectHint.textContent = `${state.objects.length} object${state.objects.length === 1 ? "" : "s"} found. Click one to edit or delete it.`;

@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from pathlib import Path
+
+import cv2
 import numpy as np
 import pytest
 
@@ -14,7 +17,16 @@ from editor.operations import (
     inpaint_object,
     resize_for_edit,
 )
-from editor.detect import grabcut_mask, hit_test, magic_wand_mask, overlay_png, region_masks
+from editor.detect import (
+    grabcut_mask,
+    hit_test,
+    identify_objects,
+    looks_like_line_diagram,
+    looks_photographic,
+    magic_wand_mask,
+    overlay_png,
+    region_masks,
+)
 from editor.session import SessionStore
 
 
@@ -157,3 +169,53 @@ def test_session_store_missing():
     store = SessionStore()
     with pytest.raises(KeyError):
         store.require("nope")
+
+
+FIXTURES = Path(__file__).parent / "fixtures"
+
+
+def test_identify_parts_not_background_area():
+    image = np.full((80, 100, 3), (204, 241, 246), dtype=np.uint8)
+    image[28:42, 38:54] = (8, 40, 90)
+    image[66:74, 24:70] = (25, 110, 175)
+    objects = identify_objects(image)
+    assert len(objects) >= 2
+    h, w = image.shape[:2]
+    for obj in objects:
+        x, y, bw, bh = obj.bbox
+        assert bw * bh < 0.5 * h * w
+        assert obj.mask.sum() < 0.25 * h * w
+
+
+def test_device_icon_finds_blue_parts():
+    image = cv2.imread(str(FIXTURES / "device-icon.png"))
+    assert image is not None
+    assert not looks_photographic(image)
+    objects = identify_objects(image)
+    assert objects
+    assert all(obj.source != "region" for obj in objects)
+    assert any("blue" in obj.label for obj in objects)
+    assert all(obj.bbox[2] * obj.bbox[3] < 0.7 * image.shape[0] * image.shape[1] for obj in objects)
+
+
+def test_plant_diagram_finds_units_not_page():
+    image = cv2.imread(str(FIXTURES / "plant-diagram.png"))
+    assert image is not None
+    assert looks_like_line_diagram(image)
+    objects = identify_objects(image)
+    assert len(objects) >= 5
+    assert all(obj.source != "yolo" for obj in objects)
+    page = image.shape[0] * image.shape[1]
+    assert all(obj.bbox[2] * obj.bbox[3] < 0.35 * page for obj in objects)
+
+
+def test_diagram_ignores_yolo_false_positives(monkeypatch: pytest.MonkeyPatch):
+    image = cv2.imread(str(FIXTURES / "plant-diagram.png"))
+    fake_mask = np.zeros(image.shape[:2], dtype=bool)
+    fake_mask[10:20, 10:20] = True
+    fake = DetectedObject("yolo-1", "traffic light", 0.9, (10, 10, 10, 10), (1, 2, 3), fake_mask, "yolo")
+    monkeypatch.setattr("editor.detect.detect_yolo", lambda _image: [fake])
+    objects = identify_objects(image)
+    assert objects
+    assert all(obj.source != "yolo" for obj in objects)
+
