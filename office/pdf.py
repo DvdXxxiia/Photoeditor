@@ -198,7 +198,9 @@ def _overview(similarity: float, only_left: list[str], only_right: list[str], ch
     if only_right:
         bits.append(f"The second PDF has {len(only_right)} statement{'s' if len(only_right) != 1 else ''} not in the first.")
     if changes:
-        bits.append(f"{len(changes)} statement{'s' if len(changes) != 1 else ''} look related but wording changed.")
+        n = len(changes)
+        verb = "looks" if n == 1 else "look"
+        bits.append(f"{n} statement{'s' if n != 1 else ''} {verb} related but wording changed.")
     if not only_left and not only_right and not changes:
         bits.append("No sentence-level differences were found.")
     return " ".join(bits)
