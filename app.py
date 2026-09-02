@@ -8,7 +8,7 @@ import re
 
 import cv2
 import numpy as np
-from fastapi import FastAPI, File, HTTPException, Query, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from PIL import Image
@@ -27,7 +27,9 @@ from editor.operations import (
     resize_for_edit,
 )
 from editor.session import SessionStore
-from office.pdf import PdfError, compare_pdf_bytes
+from office.pdf import PdfError
+from quotes.assistant import answer_question
+from quotes.service import compare_quote_pdfs, load_comparison
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -74,6 +76,10 @@ class CopyBody(BaseModel):
 class PasteBody(BaseModel):
     x: float | None = None
     y: float | None = None
+
+
+class QuoteChatBody(BaseModel):
+    question: str
 
 
 PASTE_OFFSET = 24
@@ -151,8 +157,9 @@ def photo_editor() -> FileResponse:
 
 
 @app.get("/pdf")
-def pdf_compare_page() -> FileResponse:
-    return FileResponse("static/pdf.html")
+@app.get("/quotes")
+def quote_intelligence_page() -> FileResponse:
+    return FileResponse("static/quotes.html")
 
 
 @app.post("/api/session")
@@ -415,28 +422,38 @@ def flatten(session_id: str, body: FlattenBody) -> dict:
     return _session_payload(session)
 
 
+@app.post("/api/quotes/compare")
 @app.post("/api/pdf/compare")
-async def pdf_compare(
+async def quotes_compare(
     left: UploadFile = File(...),
     right: UploadFile = File(...),
+    project: str = Form("Quote comparison"),
 ) -> dict:
     left_data = await left.read()
     right_data = await right.read()
     try:
-        result = compare_pdf_bytes(
+        return compare_quote_pdfs(
             left_data,
             right_data,
-            left_name=left.filename or "left.pdf",
-            right_name=right.filename or "right.pdf",
+            left_name=left.filename or "Quote_A.pdf",
+            right_name=right.filename or "Quote_B.pdf",
+            project_name=project or "Quote comparison",
         )
     except PdfError as exc:
         raise HTTPException(400, str(exc)) from exc
-    return result.to_dict()
+
+
+@app.post("/api/quotes/{comparison_id}/chat")
+def quotes_chat(comparison_id: int, body: QuoteChatBody) -> dict:
+    payload = load_comparison(comparison_id)
+    if payload is None:
+        raise HTTPException(404, "Comparison not found")
+    return {"answer": answer_question(body.question, payload)}
 
 
 @app.get("/api/health")
 def health() -> dict:
-    return {"ok": True, "vlm": vlm_backend(), "apps": ["photo", "pdf"]}
+    return {"ok": True, "vlm": vlm_backend(), "apps": ["photo", "quotes"]}
 
 
 if __name__ == "__main__":

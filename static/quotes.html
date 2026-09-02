@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Quote Intelligence · Office Applications</title>
+    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <a class="brand" href="/">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <div>
+            <strong>Office Applications</strong>
+            <p>Compare quotes by function and commercial impact</p>
+          </div>
+        </a>
+        <nav class="app-nav" aria-label="Applications">
+          <a href="/">Home</a>
+          <a href="/photo">Photo Editor</a>
+          <a href="/quotes" class="active">Quote Intelligence</a>
+        </nav>
+        <div class="top-actions">
+          <button id="compareBtn" class="btn btn-accent" disabled>Compare quotes</button>
+        </div>
+      </header>
+
+      <main class="pdf-shell">
+        <div class="quote-toolbar">
+          <label class="project-field">
+            Project
+            <input id="projectName" type="text" value="Dryer package" placeholder="Project name" />
+          </label>
+          <p class="hint">Upload two vendor quotes. Matching uses equipment meaning (GMP180 vs Drying Unit GMP-180), not just identical wording.</p>
+        </div>
+        <div class="pdf-panes">
+          <section class="pdf-pane">
+            <h2>Quote A</h2>
+            <label class="pdf-drop" id="dropLeft">
+              <input id="fileLeft" type="file" accept="application/pdf,.pdf" hidden />
+              <strong id="nameLeft">Drop or choose Quote_A.pdf</strong>
+              <span id="metaLeft">Vendor quote to compare from</span>
+            </label>
+          </section>
+          <section class="pdf-pane">
+            <h2>Quote B</h2>
+            <label class="pdf-drop" id="dropRight">
+              <input id="fileRight" type="file" accept="application/pdf,.pdf" hidden />
+              <strong id="nameRight">Drop or choose Quote_B.pdf</strong>
+              <span id="metaRight">Vendor quote to compare against</span>
+            </label>
+          </section>
+        </div>
+
+        <section id="results" class="pdf-results hidden">
+          <div class="kpi-row" id="kpiRow"></div>
+          <article class="result-card">
+            <h2>AI procurement summary</h2>
+            <p id="headline" class="headline"></p>
+            <p id="recommendation"></p>
+            <div class="pdf-summaries">
+              <div>
+                <h3>Both quoted</h3>
+                <ul id="bothQuoted"></ul>
+              </div>
+              <div>
+                <h3>Quote A includes</h3>
+                <ul id="leftIncludes"></ul>
+              </div>
+              <div>
+                <h3>Quote B excludes / adds</h3>
+                <ul id="rightScope"></ul>
+              </div>
+            </div>
+          </article>
+          <article class="result-card">
+            <h2>Matched line items</h2>
+            <div class="table-wrap">
+              <table class="quote-table" id="matchTable">
+                <thead>
+                  <tr>
+                    <th>Quote A</th>
+                    <th>Quote B</th>
+                    <th>Confidence</th>
+                    <th>Delta</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </article>
+          <div class="pdf-diff">
+            <article class="result-card">
+              <h2>Items missing in Quote B</h2>
+              <ul id="missing"></ul>
+            </article>
+            <article class="result-card">
+              <h2>Items added in Quote B</h2>
+              <ul id="added"></ul>
+            </article>
+          </div>
+          <article class="result-card">
+            <h2>Compare by function</h2>
+            <p id="functionNotes"></p>
+            <p class="hint" id="functionShared"></p>
+          </article>
+          <article class="result-card">
+            <h2>Visual / drawing differences</h2>
+            <ul id="drawings"></ul>
+          </article>
+          <article class="result-card">
+            <h2>Savings detector</h2>
+            <ul id="savings"></ul>
+          </article>
+          <article class="result-card">
+            <h2>Procurement assistant</h2>
+            <div id="chatLog" class="chat-log"></div>
+            <form id="chatForm" class="chat-form">
+              <input id="chatInput" type="text" placeholder="Why is Quote B cheaper?" />
+              <button class="btn btn-primary" type="submit">Ask</button>
+            </form>
+          </article>
+        </section>
+
+        <div id="busy" class="busy hidden">
+          <div class="spinner"></div>
+          <span id="busyText">Reading quotes…</span>
+        </div>
+      </main>
+      <p id="status" class="status" role="status">Upload two quote PDFs to compare equipment, price, and scope.</p>
+    </div>
+    <script src="/static/quotes.js"></script>
+  </body>
+</html>
