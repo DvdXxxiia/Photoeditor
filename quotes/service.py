@@ -6,7 +6,6 @@ import json
 
 from sqlalchemy import select
 
-from quotes.assistant import llm_summary, local_summary
 from quotes.catalog import lookup_equipment
 from quotes.compare import commercial_rows, function_compare, savings_alerts, totals
 from quotes.db import Comparison, Equipment, LineItem, Project, Quote, Vendor, session
@@ -15,6 +14,7 @@ from quotes.match import match_items
 from quotes.molding import compare_mold_quotes, parse_mold_quote
 from quotes.parse import ParsedQuote, parse_quote
 from quotes.sourcing import build_normalized_comparison, extract_sourcing_quote
+from quotes.textutil import is_year_amount
 
 
 def _vendor_id(db, name: str | None) -> int | None:
@@ -83,6 +83,10 @@ def compare_quote_pdfs(
     right_doc = ingest_pdf(right_data, right_name)
     left = parse_quote(left_doc)
     right = parse_quote(right_doc)
+    if is_year_amount(left.total):
+        left.total = 0.0
+    if is_year_amount(right.total):
+        right.total = 0.0
     left_sourcing = extract_sourcing_quote(left_doc)
     right_sourcing = extract_sourcing_quote(right_doc)
     sourcing = build_normalized_comparison(left_sourcing, right_sourcing)
@@ -105,8 +109,8 @@ def compare_quote_pdfs(
             (row["right"] for row in sourcing["costs"] if row["key"] == "total_quoted_value"),
             None,
         )
-        left.total = float(source_cost_a or left.total)
-        right.total = float(source_cost_b or right.total)
+        left.total = float(source_cost_a or 0) or (0.0 if is_year_amount(left.total) else left.total)
+        right.total = float(source_cost_b or 0) or (0.0 if is_year_amount(right.total) else right.total)
     matches = match_items(left.items, right.items)
     paired, missing, added = commercial_rows(matches)
     payload = {
@@ -122,44 +126,20 @@ def compare_quote_pdfs(
         "molding": molding,
         "sourcing": sourcing,
     }
-    if sourcing["detected"]:
-        sourcing_summary = sourcing["summary"]
-        summary = {
-            "headline": f"Recommended vendor: {sourcing_summary['recommended_vendor']}.",
-            "recommendation": (
-                f"Lowest tool cost: {sourcing_summary['lowest_tool_cost']}. "
-                f"Lowest tryout cost: {sourcing_summary['lowest_tryout_cost']}. "
-                f"Best technical scope: {sourcing_summary['best_technical_scope']}."
-            ),
-            "both_quoted": [part["part"] for part in sourcing["parts"]],
-            "left_includes": [],
-            "right_includes": [],
-            "right_excludes": sourcing_summary["missing_from_vendor_b"],
-            "backend": "normalized-sourcing-matrix",
-        }
-    else:
-        summary = llm_summary(left, right, payload) or local_summary(left, right, payload)
-    if molding["detected"] and not sourcing["detected"]:
-        costs_a = molding["left"]["total_with_tryout"]
-        costs_b = molding["right"]["total_with_tryout"]
-        delta = costs_b - costs_a
-        vendor_a = left.vendor or "Vendor A"
-        vendor_b = right.vendor or "Vendor B"
-        if delta < 0:
-            headline = f"{vendor_b} is ${abs(delta):,.0f} lower including tryouts."
-        elif delta > 0:
-            headline = f"{vendor_a} is ${abs(delta):,.0f} lower including tryouts."
-        else:
-            headline = "Both vendors have the same tooling and tryout total."
-        summary.update(
-            {
-                "headline": headline,
-                "recommendation": (
-                    f"Review {molding['difference_count']} technical field difference"
-                    f"{'s' if molding['difference_count'] != 1 else ''} by part before selecting the lower bid."
-                ),
-            }
-        )
+    sourcing_summary = sourcing["summary"]
+    summary = {
+        "headline": f"Recommended vendor: {sourcing_summary['recommended_vendor']}.",
+        "recommendation": (
+            f"Lowest tool cost: {sourcing_summary['lowest_tool_cost']}. "
+            f"Lowest tryout cost: {sourcing_summary['lowest_tryout_cost']}. "
+            f"Best technical scope: {sourcing_summary['best_technical_scope']}."
+        ),
+        "both_quoted": [part["part"] for part in sourcing["parts"]],
+        "left_includes": [],
+        "right_includes": [],
+        "right_excludes": sourcing_summary["missing_from_vendor_b"],
+        "backend": "normalized-sourcing-matrix",
+    }
     payload["summary"] = summary
 
     db = session()

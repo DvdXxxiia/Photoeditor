@@ -220,8 +220,8 @@ def lookup_equipment(text: str) -> EquipmentSpec | None:
 
 
 def lookup_vendor(text: str) -> str | None:
-    blob = (text or "").lower()
+    blob = text or ""
     for vendor in VENDORS:
-        if vendor.lower() in blob:
+        if re.search(rf"\b{re.escape(vendor)}\b", blob, re.I):
             return vendor
     return None

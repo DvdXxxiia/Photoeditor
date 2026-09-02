@@ -56,7 +56,7 @@
 
         <section id="results" class="pdf-results hidden">
           <div class="kpi-row" id="kpiRow"></div>
-          <article class="result-card">
+          <article id="genericSummary" class="result-card hidden">
             <h2>AI procurement summary</h2>
             <p id="headline" class="headline"></p>
             <p id="recommendation"></p>
@@ -135,7 +135,7 @@
               </div>
             </article>
           </section>
-          <section id="equipmentResults">
+          <section id="equipmentResults" class="hidden">
           <article class="result-card">
             <h2>Matched line items</h2>
             <div class="table-wrap">
@@ -187,8 +187,8 @@
           <span id="busyText">Reading quotes…</span>
         </div>
       </main>
-      <p id="status" class="status" role="status">Upload two quote PDFs to compare equipment, price, and scope.</p>
+        <p id="status" class="status" role="status">Upload two tooling quotations. Filenames and dates are not compared.</p>
     </div>
-    <script src="/static/quotes.js"></script>
+    <script src="/static/quotes.js?v=sourcing-matrix-2"></script>
   </body>
 </html>

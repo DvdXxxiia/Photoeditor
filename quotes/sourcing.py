@@ -10,6 +10,7 @@ from difflib import SequenceMatcher
 from rapidfuzz import fuzz
 
 from quotes.ingest import IngestedDocument
+from quotes.textutil import is_year_amount, looks_like_document_title
 
 ANALYST_SYSTEM_PROMPT = """
 You are a senior injection molding tooling sourcing engineer.
@@ -174,14 +175,21 @@ TERM_ALIASES = {
     "currency": ("currency",),
 }
 
-PART_HEADER = re.compile(r"^(?:part|component|tool)(?:\s+name)?\s*[:#-]\s*(.+)$", re.I)
-PART_NUMBER = re.compile(r"^(?:part|component)\s*(?:number|no\.?|#)\s*:\s*(.+)$", re.I)
-VENDOR = re.compile(r"^(?:vendor|toolmaker|supplier)\s*:\s*(.+)$", re.I)
+PART_HEADER = re.compile(
+    r"^(?:part|component|tool|mold|mould)(?:\s+(?:name|description|id))?\s*[:#.-]\s*(.+)$",
+    re.I,
+)
+PART_NUMBER = re.compile(r"^(?:part|component|tool)\s*(?:number|no\.?|#)\s*[:#-]\s*(.+)$", re.I)
+VENDOR = re.compile(
+    r"^(?:vendor|toolmaker|tool maker|supplier|quoted by|from)\s*[:#-]\s*(.+)$",
+    re.I,
+)
 SECTION_HEADER = re.compile(
     r"^(?:cost comparison|tryout costs?|try-out costs?|commercial terms?|terms and conditions)\s*:?\s*$",
     re.I,
 )
 MONEY = re.compile(r"(?:USD|EUR|GBP|CAD|CNY|RMB|[$€£])?\s*([\d,]+(?:\.\d{1,2})?)", re.I)
+CURRENCY_MONEY = re.compile(r"(?:USD|EUR|GBP|CAD|CNY|RMB|[$€£])\s*([\d,]+(?:\.\d{1,2})?)", re.I)
 
 
 def _empty_values(fields: tuple[tuple[str, str], ...]) -> dict:
@@ -194,25 +202,37 @@ def _normalized_label(label: str) -> str:
 
 def _match_alias(label: str, aliases: dict[str, tuple[str, ...]]) -> str | None:
     normalized = _normalized_label(label)
+    if not normalized:
+        return None
     best = None
     best_length = 0
     for key, names in aliases.items():
         for name in names:
             alias = _normalized_label(name)
-            if normalized == alias and len(alias) > best_length:
+            if not alias:
+                continue
+            exact = normalized == alias
+            prefixed = normalized.startswith(alias + " ") or alias.startswith(normalized + " ")
+            contained = len(alias) >= 5 and alias in normalized
+            if (exact or prefixed or contained) and len(alias) > best_length:
                 best = key
                 best_length = len(alias)
     return best
 
 
 def _money(value: str | None) -> float:
-    match = MONEY.search(value or "")
+    text = value or ""
+    marked = CURRENCY_MONEY.search(text)
+    match = marked or MONEY.search(text)
     if not match:
         return 0.0
     try:
-        return float(match.group(1).replace(",", ""))
+        amount = float(match.group(1).replace(",", ""))
     except ValueError:
         return 0.0
+    if not marked and (is_year_amount(amount) or looks_like_document_title(text)):
+        return 0.0
+    return amount
 
 
 def _cost_value(value: str) -> float | str:
@@ -254,6 +274,136 @@ def _new_part(name: str, page: int, line: str) -> dict:
     }
 
 
+def _has_values(container: dict) -> bool:
+    return any(entry.get("value") not in {None, ""} for entry in container.values())
+
+
+def _known_labels() -> list[str]:
+    names: list[str] = []
+    for aliases in (FIELD_ALIASES, PART_COST_ALIASES, QUOTE_COST_ALIASES, TRYOUT_ALIASES, TERM_ALIASES):
+        for values in aliases.values():
+            names.extend(values)
+    names.sort(key=len, reverse=True)
+    return names
+
+
+_KNOWN_LABELS = _known_labels()
+
+
+def _split_label_value(line: str) -> tuple[str, str] | None:
+    if ":" in line:
+        label, value = [piece.strip() for piece in line.split(":", 1)]
+        if label and value:
+            return label, value
+    if "|" in line:
+        cells = [cell.strip() for cell in line.split("|") if cell.strip()]
+        if len(cells) >= 2:
+            return cells[0], " ".join(cells[1:])
+    lowered = line.lower()
+    for name in _KNOWN_LABELS:
+        prefix = name.lower()
+        if lowered == prefix:
+            return name, ""
+        if lowered.startswith(prefix) and (len(line) == len(prefix) or line[len(prefix)] in " \t:|-"):
+            value = line[len(prefix) :].lstrip(" \t:|-")
+            if value:
+                return name, value
+    return None
+
+
+def _apply_field(result: dict, current: dict | None, orphans: dict, label: str, value: str, line: str, page: int) -> bool:
+    if not value:
+        return False
+    tryout_key = _match_alias(label, TRYOUT_ALIASES)
+    if tryout_key:
+        parsed = _cost_value(value) if tryout_key != "included_tryouts" else value
+        _set_value(result["tryouts"], tryout_key, parsed, line, page)
+        return True
+    technical_key = _match_alias(label, FIELD_ALIASES)
+    part_cost_key = _match_alias(label, PART_COST_ALIASES)
+    quote_cost_key = _match_alias(label, QUOTE_COST_ALIASES)
+    term_key = _match_alias(label, TERM_ALIASES)
+    if current is not None and technical_key:
+        _set_value(current["technical"], technical_key, value, line, page)
+        return True
+    if current is not None and part_cost_key:
+        _set_value(current["costs"], part_cost_key, _cost_value(value), line, page)
+        return True
+    if quote_cost_key:
+        _set_value(result["costs"], quote_cost_key, _cost_value(value), line, page)
+        return True
+    if term_key:
+        _set_value(result["terms"], term_key, value, line, page)
+        return True
+    if technical_key:
+        _set_value(orphans["technical"], technical_key, value, line, page)
+        return True
+    if part_cost_key:
+        _set_value(orphans["costs"], part_cost_key, _cost_value(value), line, page)
+        return True
+    return False
+
+
+def _iter_tables(doc: IngestedDocument) -> list[tuple[int, list[list[str]]]]:
+    tables: list[tuple[int, list[list[str]]]] = []
+    for block in doc.blocks:
+        if block.get("type") != "table":
+            continue
+        rows = block.get("rows")
+        if not rows and block.get("text"):
+            rows = [line.split(" | ") for line in str(block["text"]).splitlines() if line.strip()]
+        if rows:
+            tables.append((int(block.get("page") or 1), rows))
+    if not tables:
+        tables.extend((1, table) for table in doc.tables if table)
+    return tables
+
+
+def _consume_part_table(result: dict, page: int, rows: list[list[str]]) -> bool:
+    if len(rows) < 2:
+        return False
+    headers = [_normalized_label(cell) for cell in rows[0]]
+    part_i = next(
+        (
+            i
+            for i, header in enumerate(headers)
+            if header in {"part", "part name", "component", "tool", "tool name", "description"}
+        ),
+        None,
+    )
+    if part_i is None:
+        return False
+    created = False
+    for row in rows[1:]:
+        if part_i >= len(row):
+            continue
+        name = " ".join(str(row[part_i] or "").split())
+        if not name or looks_like_document_title(name):
+            continue
+        current = _new_part(name, page, name)
+        result["parts"].append(current)
+        created = True
+        for i, cell in enumerate(row):
+            if i == part_i:
+                continue
+            label = rows[0][i] if i < len(rows[0]) else ""
+            value = " ".join(str(cell or "").split())
+            if label and value:
+                _apply_field(result, current, current, label, value, f"{label}: {value}", page)
+    return created
+
+
+def _consume_kv_table(result: dict, current: dict | None, orphans: dict, page: int, rows: list[list[str]]) -> None:
+    for row in rows:
+        cells = [" ".join(str(cell or "").split()) for cell in row if str(cell or "").strip()]
+        if len(cells) < 2:
+            continue
+        label, value = cells[0], " ".join(cells[1:])
+        if looks_like_document_title(label) or looks_like_document_title(" ".join(cells)):
+            continue
+        _apply_field(result, current, orphans, label, value, f"{label}: {value}", page)
+
+
 def local_extract(doc: IngestedDocument) -> dict:
     result = {
         "vendor": None,
@@ -264,10 +414,14 @@ def local_extract(doc: IngestedDocument) -> dict:
         "terms": _empty_values(TERM_FIELDS),
         "backend": "normalized-local",
     }
+    orphans = {
+        "technical": _empty_values(TECHNICAL_FIELDS),
+        "costs": _empty_values(PART_COST_FIELDS),
+    }
     current = None
     for page, raw in _page_lines(doc):
         line = " ".join(raw.strip().split())
-        if not line:
+        if not line or looks_like_document_title(line):
             continue
         vendor_match = VENDOR.match(line)
         if vendor_match:
@@ -279,54 +433,56 @@ def local_extract(doc: IngestedDocument) -> dict:
             current["part_number"] = number_match.group(1).strip()
             continue
         part_match = PART_HEADER.match(line)
-        if part_match:
-            current = _new_part(part_match.group(1), page, line)
+        if part_match and not _match_alias(part_match.group(1), QUOTE_COST_ALIASES):
+            name = part_match.group(1).strip()
+            if looks_like_document_title(name):
+                continue
+            current = _new_part(name, page, line)
             result["parts"].append(current)
             continue
         if SECTION_HEADER.match(line):
             current = None
             continue
-        if ":" not in line:
+        split = _split_label_value(line)
+        if not split:
             continue
-        label, value = [piece.strip() for piece in line.split(":", 1)]
+        _apply_field(result, current, orphans, split[0], split[1], line, page)
 
-        tryout_key = _match_alias(label, TRYOUT_ALIASES)
-        if tryout_key:
-            parsed = _cost_value(value) if tryout_key != "included_tryouts" else value
-            _set_value(result["tryouts"], tryout_key, parsed, line, page)
-            continue
-        term_key = _match_alias(label, TERM_ALIASES)
-        technical_key = _match_alias(label, FIELD_ALIASES)
-        part_cost_key = _match_alias(label, PART_COST_ALIASES)
-        quote_cost_key = _match_alias(label, QUOTE_COST_ALIASES)
+    for page, rows in _iter_tables(doc):
+        if not _consume_part_table(result, page, rows):
+            _consume_kv_table(result, current, orphans, page, rows)
 
-        if current is not None and technical_key:
-            _set_value(current["technical"], technical_key, value, line, page)
-            continue
-        if current is not None and part_cost_key:
-            _set_value(current["costs"], part_cost_key, _cost_value(value), line, page)
-            continue
-        if quote_cost_key:
-            _set_value(result["costs"], quote_cost_key, _cost_value(value), line, page)
-            continue
-        if term_key:
-            _set_value(result["terms"], term_key, value, line, page)
-            continue
+    if result["parts"] and (_has_values(orphans["technical"]) or _has_values(orphans["costs"])):
+        first = result["parts"][0]
+        for key, entry in orphans["technical"].items():
+            if entry["value"] not in {None, ""} and first["technical"][key]["value"] in {None, ""}:
+                first["technical"][key] = entry
+        for key, entry in orphans["costs"].items():
+            if entry["value"] not in {None, ""} and first["costs"][key]["value"] in {None, ""}:
+                first["costs"][key] = entry
+    elif not result["parts"]:
+        part = _new_part("Quoted tool", 1, "Quoted tool")
+        part["technical"] = orphans["technical"]
+        part["costs"] = orphans["costs"]
+        result["parts"].append(part)
 
     tool_costs = [
         part["costs"]["tool_cost"]["value"] or 0
         for part in result["parts"]
     ]
     if not result["costs"]["tool_subtotal"]["value"] and any(tool_costs):
-        result["costs"]["tool_subtotal"]["value"] = round(sum(tool_costs), 2)
+        numeric = [float(cost) for cost in tool_costs if isinstance(cost, (int, float))]
+        if numeric:
+            result["costs"]["tool_subtotal"]["value"] = round(sum(numeric), 2)
     if not result["costs"]["total_quoted_value"]["value"]:
         components = [
             result["costs"][key]["value"] or 0
             for key, _ in QUOTE_COST_FIELDS
             if key != "total_quoted_value"
         ]
-        if any(components):
-            result["costs"]["total_quoted_value"]["value"] = round(sum(components), 2)
+        numeric = [float(value) for value in components if isinstance(value, (int, float))]
+        if any(numeric):
+            result["costs"]["total_quoted_value"]["value"] = round(sum(numeric), 2)
     return result
 
 
@@ -596,7 +752,7 @@ def build_normalized_comparison(left: dict, right: dict) -> dict:
     tryout_matrix = _matrix(left.get("tryouts") or {}, right.get("tryouts") or {}, TRYOUT_FIELDS, costs=True)
     term_matrix = _matrix(left.get("terms") or {}, right.get("terms") or {}, TERM_FIELDS)
     result = {
-        "detected": bool(parts),
+        "detected": True,
         "vendors": {"left": left.get("vendor"), "right": right.get("vendor")},
         "parts": parts,
         "costs": cost_matrix,
@@ -612,11 +768,11 @@ def _missing(matrix: dict, side: str) -> list[str]:
     target_status = "added_in_b" if side == "Vendor A" else "missing_in_b"
     for part in matrix["parts"]:
         for row in part["technical"]:
-            if row["status"] in {target_status, "not_specified"}:
+            if row["status"] == target_status:
                 missing.append(f"{part['part']}: {row['label']}")
     for section in ("tryouts", "terms"):
         for row in matrix[section]:
-            if row["status"] in {target_status, "not_specified"}:
+            if row["status"] == target_status:
                 missing.append(row["label"])
     return missing
 

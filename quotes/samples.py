@@ -219,3 +219,41 @@ Penalties or Liabilities: None
 Quote Validity: 30 days
 Currency: USD
 """
+
+TITLE_QUOTE_A = """
+FSU VU_A6_26 August 25th, 2026
+Start-up review included
+Toolmaker: Northwind Molds
+
+Tool name: Console Bezel
+Part number: CB-210
+Number of cavities 1
+Steel grades 1.2343
+Mold base HASCO
+Hot runner Mold-Masters 8 drops
+Validation scope T0 and T1 samples
+Included scope Tool design and electrodes
+Tool warranty 800,000 shots
+Lead time 16 weeks
+Tool cost USD 185000
+Total quoted value USD 198500
+"""
+
+TITLE_QUOTE_B = """
+FSU VU_A6_26 September 1st, 2026
+Start-up review included
+Toolmaker: Southshore Tools
+
+Tool name: Console Bezel
+Part number: CB-210
+Number of cavities 2
+Steel grades 1.2311
+Mold base DME
+Hot runner Yudo 4 drops
+Validation scope T0 samples only
+Included scope Tool design
+Tool warranty 400,000 shots
+Lead time 20 weeks
+Tool cost USD 176000
+Total quoted value USD 190000
+"""

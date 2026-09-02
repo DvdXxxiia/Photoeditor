@@ -7,13 +7,17 @@ from dataclasses import asdict, dataclass, field
 
 from quotes.catalog import lookup_equipment, lookup_vendor
 from quotes.ingest import IngestedDocument
+from quotes.textutil import is_year_amount, looks_like_document_title
 
 MONEY = re.compile(r"\$?\s*([\d,]+\.\d{2}|[\d,]+)")
 QTY_PRICE = re.compile(
     r"^(?P<desc>.+?)\s+(?P<qty>\d+(?:\.\d+)?)\s+\$?(?P<price>[\d,]+(?:\.\d{2})?)\s*$"
 )
 PRICE_ONLY = re.compile(r"^(?P<desc>.+?)\s+\$?(?P<price>[\d,]+(?:\.\d{2})?)\s*$")
-QUOTE_NO = re.compile(r"(?:quote\s*(?:number|no\.?|#)?|q)\s*[:#-]?\s*([A-Z]{0,4}\d{3,})", re.I)
+QUOTE_NO = re.compile(
+    r"(?:quote|quotation)\s*(?:number|no\.?|#)?\s*[:#-]?\s*([A-Z]{0,4}\d{2,}[-A-Z0-9]*)",
+    re.I,
+)
 DATE = re.compile(r"(20\d{2}[-/]\d{1,2}[-/]\d{1,2})")
 TOTAL = re.compile(r"\btotal\b[:\s]*\$?\s*([\d,]+(?:\.\d{2})?)", re.I)
 SKIP_DESC = re.compile(r"^(item|description|qty|quantity|price|unit|total|amount)\b", re.I)
@@ -65,9 +69,20 @@ def _money(value: str | None) -> float:
     if not value:
         return 0.0
     try:
-        return float(str(value).replace(",", "").replace("$", "").strip())
+        amount = float(str(value).replace(",", "").replace("$", "").strip())
     except ValueError:
         return 0.0
+    if is_year_amount(amount) and "$" not in str(value):
+        return 0.0
+    return amount
+
+
+def _usable_item(description: str, price: float) -> bool:
+    if looks_like_document_title(description):
+        return False
+    if is_year_amount(price):
+        return False
+    return True
 
 
 def _enrich(description: str, qty: float, price: float) -> QuoteItem:
@@ -116,6 +131,8 @@ def _items_from_tables(tables: list[list[list[str]]]) -> list[QuoteItem]:
                 found = MONEY.findall(joined)
                 if found:
                     price = _money(found[-1])
+            if not _usable_item(desc, price):
+                continue
             if price <= 0 and not lookup_equipment(desc):
                 continue
             items.append(_enrich(desc, qty, price))
@@ -126,15 +143,19 @@ def _items_from_text(text: str) -> list[QuoteItem]:
     items: list[QuoteItem] = []
     for raw in text.splitlines():
         line = " ".join(raw.strip().split())
-        if not line or SKIP_DESC.match(line) or TOTAL.search(line):
+        if not line or SKIP_DESC.match(line) or TOTAL.search(line) or looks_like_document_title(line):
             continue
         match = QTY_PRICE.match(line)
         if match:
-            items.append(_enrich(match.group("desc"), float(match.group("qty")), _money(match.group("price"))))
+            desc, price = match.group("desc"), _money(match.group("price"))
+            if _usable_item(desc, price):
+                items.append(_enrich(desc, float(match.group("qty")), price))
             continue
         match = PRICE_ONLY.match(line)
         if match and lookup_equipment(match.group("desc")):
-            items.append(_enrich(match.group("desc"), 1, _money(match.group("price"))))
+            desc, price = match.group("desc"), _money(match.group("price"))
+            if _usable_item(desc, price):
+                items.append(_enrich(desc, 1, price))
     return items
 
 
@@ -158,6 +179,8 @@ def parse_quote(doc: IngestedDocument) -> ParsedQuote:
     found_total = TOTAL.search(text)
     if found_total:
         total = _money(found_total.group(1))
+        if is_year_amount(total):
+            total = 0.0
     if not total:
         total = round(sum(item.ext_price for item in items), 2)
     return ParsedQuote(
