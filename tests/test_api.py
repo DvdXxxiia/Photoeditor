@@ -150,56 +150,53 @@ def test_flatten_drawings():
     assert res.json()["can_undo"] is True
 
 
-def test_office_pages_and_pdf_compare():
+def test_office_pages_and_quote_compare():
     from office.pdf import write_text_pdf
-
-    left_text = (
-        "The office opens at 9 AM. Staff must badge in at the lobby. Lunch is served at noon. "
-        "Visitors sign the front desk log."
-    )
-    right_text = (
-        "The office opens at 10 AM. Staff must badge in at the lobby. Remote work is allowed on Friday. "
-        "Visitors sign the front desk log."
-    )
+    from quotes.samples import QUOTE_A, QUOTE_B
 
     client = TestClient(app_module.app)
     home = client.get("/")
     assert home.status_code == 200
     assert b"Office Applications" in home.content
-    assert b"PDF Compare" in home.content
+    assert b"Quote Intelligence" in home.content
 
     photo = client.get("/photo")
     assert photo.status_code == 200
     assert b"Photo Editor" in photo.content
 
-    pdf_page = client.get("/pdf")
-    assert pdf_page.status_code == 200
-    assert b"Summarize" in pdf_page.content
+    quotes_page = client.get("/quotes")
+    assert quotes_page.status_code == 200
+    assert b"Compare quotes" in quotes_page.content
 
     health = client.get("/api/health").json()
     assert health["ok"] is True
-    assert "pdf" in health["apps"]
+    assert "quotes" in health["apps"]
 
     bad = client.post(
-        "/api/pdf/compare",
+        "/api/quotes/compare",
         files={
             "left": ("a.pdf", b"not a pdf", "application/pdf"),
-            "right": ("b.pdf", write_text_pdf(right_text), "application/pdf"),
+            "right": ("b.pdf", write_text_pdf(QUOTE_B), "application/pdf"),
         },
     )
     assert bad.status_code == 400
 
     compared = client.post(
-        "/api/pdf/compare",
+        "/api/quotes/compare",
         files={
-            "left": ("hours-a.pdf", write_text_pdf(left_text), "application/pdf"),
-            "right": ("hours-b.pdf", write_text_pdf(right_text), "application/pdf"),
+            "left": ("Quote_A.pdf", write_text_pdf(QUOTE_A), "application/pdf"),
+            "right": ("Quote_B.pdf", write_text_pdf(QUOTE_B), "application/pdf"),
         },
+        data={"project": "Dryer package"},
     )
     assert compared.status_code == 200
     data = compared.json()
-    assert data["left"]["filename"] == "hours-a.pdf"
-    assert data["right"]["filename"] == "hours-b.pdf"
-    assert data["only_in_left"]
-    assert data["only_in_right"]
-    assert 0 <= data["similarity"] < 1
+    assert data["left"]["vendor"] == "Piovan"
+    assert data["matches"]
+    assert data["comparison_id"]
+    chat = client.post(
+        f"/api/quotes/{data['comparison_id']}/chat",
+        json={"question": "Why is Quote B cheaper?"},
+    )
+    assert chat.status_code == 200
+    assert chat.json()["answer"]
