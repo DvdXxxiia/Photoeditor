@@ -42,6 +42,7 @@
     status: document.getElementById("status"),
     busy: document.getElementById("busy"),
     busyText: document.getElementById("busyText"),
+    genericSummary: document.getElementById("genericSummary"),
   };
 
   function money(value) {
@@ -159,11 +160,11 @@
   }
 
   function renderSourcing(sourcing) {
-    const detected = Boolean(sourcing?.detected);
-    els.sourcingResults.classList.toggle("hidden", !detected);
-    if (!detected) return false;
+    els.sourcingResults.classList.remove("hidden");
     els.moldingResults.classList.add("hidden");
     els.equipmentResults.classList.add("hidden");
+    if (els.genericSummary) els.genericSummary.classList.add("hidden");
+    if (!sourcing) return true;
 
     const summary = sourcing.summary || {};
     const summaryItems = [
@@ -308,7 +309,7 @@
     if (summary.right_includes?.length) rightScope.push("Adds: " + summary.right_includes.join(", "));
     fillList(els.rightScope, rightScope, "No unique scope on Quote B.");
     renderMolding(data.molding);
-    const sourcingDetected = renderSourcing(data.sourcing);
+    renderSourcing(data.sourcing);
 
     els.matchTable.innerHTML = "";
     for (const row of data.matches || []) {
@@ -347,11 +348,7 @@
       "No historical price increase stored for these SKUs yet."
     );
     els.chatLog.innerHTML = "";
-    addChat("assistant", sourcingDetected
-      ? "Ask about cavities, steel, hot runners, technical scope, costs, tryouts, risks, or vendor terms."
-      : data.molding?.detected
-        ? "Ask about a part's configuration, tryout costs, lead time, or vendor payment terms."
-      : "Ask why a quote is cheaper, what was excluded, or how the scope differs.");
+    addChat("assistant", "Ask about cavities, steel, hot runners, technical scope, costs, tryouts, risks, or vendor terms.");
   }
 
   function addChat(role, text) {
@@ -368,7 +365,7 @@
     body.append("left", state.left);
     body.append("right", state.right);
     body.append("project", els.projectName.value || "Quote comparison");
-    setBusy(true, "Matching equipment and pricing…");
+    setBusy(true, "Extracting sourcing matrix…");
     try {
       const res = await fetch("/api/quotes/compare", { method: "POST", body });
       const data = await res.json().catch(() => ({}));

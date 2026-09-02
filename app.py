@@ -159,7 +159,10 @@ def photo_editor() -> FileResponse:
 @app.get("/pdf")
 @app.get("/quotes")
 def quote_intelligence_page() -> FileResponse:
-    return FileResponse("static/quotes.html")
+    return FileResponse(
+        "static/quotes.html",
+        headers={"Cache-Control": "no-store, max-age=0"},
+    )
 
 
 @app.post("/api/session")

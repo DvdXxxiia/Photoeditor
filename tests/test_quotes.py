@@ -66,7 +66,8 @@ def test_compare_quote_pdfs_dashboard():
     added = " ".join(row["right"]["description"] for row in payload["added_in_right"]).lower()
     assert "dew point" in added
     assert "drawings" not in payload
-    assert "lower cost" in payload["summary"]["headline"].lower() or "lower" in payload["summary"]["headline"].lower()
+    assert payload["summary"]["backend"] == "normalized-sourcing-matrix"
+    assert "recommended vendor" in payload["summary"]["headline"].lower()
 
 
 def test_assistant_explains_why_cheaper():

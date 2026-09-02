@@ -4,7 +4,7 @@ import json
 
 from office.pdf import write_text_pdf
 from quotes.ingest import IngestedDocument
-from quotes.samples import MOLD_QUOTE_A, MOLD_QUOTE_B
+from quotes.samples import MOLD_QUOTE_A, MOLD_QUOTE_B, TITLE_QUOTE_A, TITLE_QUOTE_B
 from quotes.service import compare_quote_pdfs
 from quotes.sourcing import (
     ANALYST_SYSTEM_PROMPT,
@@ -131,3 +131,89 @@ def test_service_does_not_compare_filename_or_image_count():
     assert "image count" not in serialized
     assert "images" not in sourcing
     assert sourcing["parts"][0]["technical"]
+
+
+def test_title_dates_are_not_treated_as_prices_or_star_skus():
+    payload = compare_quote_pdfs(
+        write_text_pdf(TITLE_QUOTE_A),
+        write_text_pdf(TITLE_QUOTE_B),
+        "FSU VU_A6_26 August 25th, 2026.pdf",
+        "FSU VU_A6_26 September 1st, 2026.pdf",
+        "FSU VU_A6_26",
+    )
+    assert payload["sourcing"]["detected"] is True
+    assert payload["totals"]["left"] == 198500
+    assert payload["totals"]["right"] == 190000
+    assert payload["left"]["vendor"] == "Northwind Molds"
+    assert payload["right"]["vendor"] == "Southshore Tools"
+    assert payload["left"]["vendor"] != "Star"
+    descriptions = " ".join(
+        str((row.get("left") or {}).get("description") or "")
+        + " "
+        + str((row.get("right") or {}).get("description") or "")
+        for row in payload.get("matches") or []
+    ).lower()
+    assert "august 25th" not in descriptions
+    assert "september 1st" not in descriptions
+    assert "star is the lower-cost" not in payload["summary"]["recommendation"].lower()
+    assert payload["summary"]["backend"] == "normalized-sourcing-matrix"
+    part = payload["sourcing"]["parts"][0]
+    assert part["part"] == "Console Bezel"
+    rows = {row["key"]: row for row in part["technical"]}
+    assert rows["cavities"]["left"] == "1"
+    assert rows["cavities"]["right"] == "2"
+    assert rows["hot_runner"]["left"] == "Mold-Masters 8 drops"
+    assert rows["hot_runner"]["right"] == "Yudo 4 drops"
+
+
+def test_extracts_unlabeled_and_table_fields_instead_of_filename():
+    quote = local_extract(
+        IngestedDocument(
+            filename="FSU VU_A6_26 August 25th, 2026.pdf",
+            page_count=1,
+            text=TITLE_QUOTE_A,
+            tables=[
+                [
+                    ["Item", "Specification"],
+                    ["Cavities", "1"],
+                    ["Steel grades", "1.2343"],
+                    ["Hot runner", "Mold-Masters 8 drops"],
+                ]
+            ],
+            blocks=[
+                {"type": "page_text", "page": 1, "text": TITLE_QUOTE_A},
+                {
+                    "type": "table",
+                    "page": 1,
+                    "rows": [
+                        ["Item", "Specification"],
+                        ["Insulation", "12 mm plates"],
+                    ],
+                    "text": "Item | Specification\nInsulation | 12 mm plates",
+                },
+            ],
+        )
+    )
+    assert quote["vendor"] == "Northwind Molds"
+    assert quote["parts"][0]["name"] == "Console Bezel"
+    assert quote["parts"][0]["technical"]["cavities"]["value"] == "1"
+    assert quote["parts"][0]["technical"]["insulation"]["value"] == "12 mm plates"
+    assert quote["costs"]["total_quoted_value"]["value"] == 198500
+    serialized = json.dumps(quote).lower()
+    assert "august 25th, 2026.pdf" not in serialized
+    assert quote["costs"]["total_quoted_value"]["value"] != 2026
+
+
+def test_date_only_cover_sheets_do_not_invent_a_2026_dollar_total():
+    payload = compare_quote_pdfs(
+        write_text_pdf("FSU VU_A6_26 August 25th, 2026\nStart-up included\n"),
+        write_text_pdf("FSU VU_A6_26 September 1st, 2026\nStart-up included\n"),
+        "FSU VU_A6_26 August 25th, 2026.pdf",
+        "FSU VU_A6_26 September 1st, 2026.pdf",
+    )
+    assert payload["totals"]["left"] != 2026
+    assert payload["totals"]["right"] != 2026
+    assert payload["left"].get("vendor") != "Star"
+    assert payload["summary"]["backend"] == "normalized-sourcing-matrix"
+    assert payload["sourcing"]["detected"] is True
+    assert payload["sourcing"]["parts"]
