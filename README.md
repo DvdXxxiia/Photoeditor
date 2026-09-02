@@ -11,7 +11,9 @@ python app.py
 
 Then open [http://127.0.0.1:8000](http://127.0.0.1:8000).
 
-The first **Identify objects** run may download a small [YOLOv8](https://github.com/ultralytics/ultralytics) model (`yolov8n-seg.pt`) so named objects (people, cars, cups, and other COCO classes) can be detected. If that model is unavailable, the app falls back to color-region grouping. You can always select extra regions with the magic wand or box tool.
+The first **Identify objects** run on a real photo may download a small [YOLOv8](https://github.com/ultralytics/ultralytics) model (`yolov8n-seg.pt`) so named things (people, cars, cups, and other COCO classes) can be detected.
+
+Icons, CAD drawings, and plant schematics skip YOLO. Those images are split into **separate parts** (filled shapes, machine units, colored pipes) instead of one background “area.” You can still add extra parts with the magic wand or box tool.
 
 ## What you can do
 
