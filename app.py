@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import logging
+import re
 
 import cv2
 import numpy as np
@@ -14,7 +15,7 @@ from PIL import Image
 from pydantic import BaseModel, Field
 
 from editor.detect import grabcut_mask, hit_test, identify_objects, magic_wand_mask, overlay_png
-from editor.models import DetectedObject
+from editor.models import ClipboardItem, DetectedObject
 from editor.vlm import vlm_backend
 from editor.operations import (
     OPERATIONS,
@@ -22,6 +23,7 @@ from editor.operations import (
     bbox_from_mask,
     flatten_overlay,
     inpaint_object,
+    paste_pixels,
     resize_for_edit,
 )
 from editor.session import SessionStore
@@ -64,6 +66,19 @@ class FlattenBody(BaseModel):
     overlay_png_base64: str
 
 
+class CopyBody(BaseModel):
+    object_id: str
+
+
+class PasteBody(BaseModel):
+    x: float | None = None
+    y: float | None = None
+
+
+PASTE_OFFSET = 24
+_COPY_SUFFIX = re.compile(r" copy(?: \d+)?$", re.I)
+
+
 def _encode_jpeg(image_bgr: np.ndarray, quality: int = 90) -> bytes:
     success, buf = cv2.imencode(".jpg", image_bgr, [int(cv2.IMWRITE_JPEG_QUALITY), quality])
     if not success:
@@ -95,6 +110,7 @@ def _session_payload(session, extra: dict | None = None) -> dict:
         "objects": [obj.to_dict() for obj in session.objects],
         "can_undo": bool(session.history),
         "can_redo": bool(session.redo_stack),
+        "can_paste": session.clipboard is not None,
         "operations": list(OPERATIONS),
     }
     if extra:
@@ -110,6 +126,17 @@ def _renumber(objects: list[DetectedObject]) -> list[DetectedObject]:
 
 def _drop_object(session, object_id: str) -> None:
     session.objects = [obj for obj in session.objects if obj.id != object_id]
+
+
+def _base_copy_label(label: str) -> str:
+    return _COPY_SUFFIX.sub("", label).strip() or "Object"
+
+
+def _pasted_label(base: str, paste_count: int) -> str:
+    n = paste_count + 1
+    if n == 1:
+        return f"{base} copy"
+    return f"{base} copy {n}"
 
 
 @app.get("/")
@@ -250,6 +277,71 @@ def modify(session_id: str, body: ModifyBody) -> dict:
         session.history.pop()
         raise HTTPException(400, str(exc)) from exc
     return _session_payload(session)
+
+
+@app.post("/api/session/{session_id}/copy")
+def copy_object(session_id: str, body: CopyBody) -> dict:
+    try:
+        session = store.require(session_id)
+    except KeyError as exc:
+        raise HTTPException(404, "Session not found") from exc
+    obj = store.find_object(session_id, body.object_id)
+    if obj is None:
+        raise HTTPException(404, "Object not found")
+    session.clipboard = ClipboardItem(
+        pixels=session.image.copy(),
+        mask=obj.mask.copy(),
+        label=_base_copy_label(obj.label),
+        color=tuple(obj.color),
+        paste_count=0,
+    )
+    return _session_payload(session)
+
+
+@app.post("/api/session/{session_id}/paste")
+def paste_object(session_id: str, body: PasteBody | None = None) -> dict:
+    try:
+        session = store.require(session_id)
+    except KeyError as exc:
+        raise HTTPException(404, "Session not found") from exc
+    clip = session.clipboard
+    if clip is None:
+        raise HTTPException(400, "Nothing to paste. Copy an object first.")
+    body = body or PasteBody()
+    if body.x is not None and body.y is not None:
+        bbox = bbox_from_mask(clip.mask)
+        if bbox is None:
+            raise HTTPException(400, "Copied region is empty")
+        cx = bbox[0] + bbox[2] // 2
+        cy = bbox[1] + bbox[3] // 2
+        dx = int(round(body.x)) - cx
+        dy = int(round(body.y)) - cy
+    else:
+        step = PASTE_OFFSET * (clip.paste_count + 1)
+        dx, dy = step, step
+    session.snapshot()
+    try:
+        session.image, new_mask = paste_pixels(session.image, clip.pixels, clip.mask, dx, dy)
+    except ValueError as exc:
+        session.history.pop()
+        raise HTTPException(400, str(exc)) from exc
+    bbox = bbox_from_mask(new_mask)
+    if bbox is None:
+        session.history.pop()
+        raise HTTPException(400, "Paste would land outside the image")
+    obj = DetectedObject(
+        id=f"obj-{len(session.objects) + 1}",
+        label=_pasted_label(clip.label, clip.paste_count),
+        confidence=1.0,
+        bbox=bbox,
+        color=clip.color,
+        mask=new_mask,
+        source="paste",
+    )
+    session.objects.append(obj)
+    _renumber(session.objects)
+    clip.paste_count += 1
+    return _session_payload(session, {"selected_id": obj.id})
 
 
 @app.post("/api/session/{session_id}/delete")
