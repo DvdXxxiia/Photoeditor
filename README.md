@@ -11,9 +11,15 @@ python app.py
 
 Then open [http://127.0.0.1:8000](http://127.0.0.1:8000).
 
-The first **Identify objects** run on a real photo may download a small [YOLOv8](https://github.com/ultralytics/ultralytics) model (`yolov8n-seg.pt`) so named things (people, cars, cups, and other COCO classes) can be detected.
+The first **Identify objects** run uses a vision-language model so names are semantic (`ornamental metal fence`, `window security grille`) instead of color fragments (`blue line`).
 
-Icons, CAD drawings, and plant schematics skip YOLO. Those images are split into **separate parts** (filled shapes, machine units, colored pipes) instead of one background “area.” You can still add extra parts with the magic wand or box tool.
+1. Detect regions in the image (Florence-2 dense captions when the model is available, otherwise connected drawings / units).
+2. Crop each region and send it to **Florence-2** (`microsoft/Florence-2-base`) or **GPT-4o Vision** if `OPENAI_API_KEY` is set.
+3. Store `{ label, confidence, bbox: [x, y, w, h] }`.
+
+The first Florence-2 run downloads the model weights. Set `PHOTOEDITOR_DISABLE_VLM=1` to skip it. Optional: `PHOTOEDITOR_FLORENCE_MODEL`, `PHOTOEDITOR_OPENAI_MODEL`.
+
+You can still add extra regions with the magic wand or box tool.
 
 ## What you can do
 
