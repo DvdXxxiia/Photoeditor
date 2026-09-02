@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 
 from editor.detect import grabcut_mask, hit_test, identify_objects, magic_wand_mask, overlay_png
 from editor.models import DetectedObject
+from editor.vlm import vlm_backend
 from editor.operations import (
     OPERATIONS,
     apply_operation,
@@ -313,7 +314,7 @@ def flatten(session_id: str, body: FlattenBody) -> dict:
 
 @app.get("/api/health")
 def health() -> dict:
-    return {"ok": True}
+    return {"ok": True, "vlm": vlm_backend()}
 
 
 if __name__ == "__main__":
