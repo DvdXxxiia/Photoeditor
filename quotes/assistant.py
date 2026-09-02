@@ -156,6 +156,51 @@ def _llm_answer(question: str, payload: dict) -> str | None:
 
 def _local_answer(question: str, payload: dict) -> str:
     q = question.lower()
+    molding = payload.get("molding") or {}
+    if molding.get("detected"):
+        if "tryout" in q or "trial" in q:
+            tryouts = molding.get("tryouts") or {}
+            return (
+                f"Tryout cost is {_money(tryouts.get('left') or 0)} for Vendor A and "
+                f"{_money(tryouts.get('right') or 0)} for Vendor B. "
+                f"Vendor B's difference is {_money(tryouts.get('difference') or 0)}."
+            )
+        if "term" in q or "payment" in q or "warranty" in q or "delivery" in q:
+            differences = []
+            for row in molding.get("terms") or []:
+                if row.get("status") not in {"same", "not_specified"}:
+                    differences.append(
+                        f"{row.get('label')}: A = {row.get('left') or 'not specified'}; "
+                        f"B = {row.get('right') or 'not specified'}"
+                    )
+            return "Vendor term differences: " + ("; ".join(differences) if differences else "none detected") + "."
+        field_names = {
+            "configuration",
+            "insulation",
+            "demolding",
+            "inserts",
+            "compression",
+            "sliders",
+            "gating",
+            "pur",
+            "sealing",
+            "surface",
+            "finishing",
+            "fim",
+            "temperature",
+            "option",
+            "lead time",
+        }
+        if any(name in q for name in field_names) or "part" in q or "technical" in q:
+            differences = []
+            for part in molding.get("parts") or []:
+                for row in part.get("fields") or []:
+                    if row.get("status") in {"different", "missing_in_b", "added_in_b"}:
+                        differences.append(
+                            f"{part.get('name')} — {row.get('label')}: "
+                            f"A = {row.get('left') or 'not specified'}; B = {row.get('right') or 'not specified'}"
+                        )
+            return "Technical differences: " + ("; ".join(differences[:12]) if differences else "none detected") + "."
     totals = payload.get("totals") or {}
     missing = [row["left"]["description"] for row in payload.get("missing_in_right") or [] if row.get("left")]
     added = [row["right"]["description"] for row in payload.get("added_in_right") or [] if row.get("right")]

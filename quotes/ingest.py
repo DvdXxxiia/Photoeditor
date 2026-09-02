@@ -176,11 +176,12 @@ def _ingest_local(data: bytes, filename: str) -> IngestedDocument:
 
         doc = fitz.open(stream=data, filetype="pdf")
         page_count = max(page_count, doc.page_count)
+        pdfplumber_had_text = bool(text_parts)
         for index, page in enumerate(doc, start=1):
             if index > MAX_PAGES:
                 break
             extracted = page.get_text("text") or ""
-            if extracted and extracted not in text_parts:
+            if extracted and not pdfplumber_had_text:
                 text_parts.append(extracted)
             for img in page.get_images(full=True):
                 images.append({"page": index, "xref": int(img[0]), "width": None, "height": None})

@@ -742,3 +742,99 @@ input[type="color"] {
   font-size: 13px;
   color: var(--muted);
 }
+
+.molding-results,
+#equipmentResults,
+.part-comparisons {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.part-card {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--bg-3);
+}
+
+.part-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px;
+}
+
+.part-card-header h3 {
+  margin: 0 0 4px;
+  color: var(--text);
+  font-size: 15px;
+}
+
+.part-card-header small {
+  color: var(--muted);
+}
+
+.part-price {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.part-price strong {
+  font-size: 16px;
+}
+
+.part-price .down {
+  color: var(--accent-2);
+}
+
+.part-price .up {
+  color: var(--danger);
+}
+
+.field-table {
+  background: var(--bg-2);
+}
+
+.field-table th:first-child,
+#termsTable th:first-child {
+  min-width: 135px;
+}
+
+.field-different,
+.field-missing_in_b,
+.field-added_in_b {
+  background: rgba(248, 113, 113, 0.04);
+}
+
+.comparison-status {
+  display: inline-block;
+  white-space: nowrap;
+  padding: 3px 7px;
+  border-radius: 999px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 11px;
+}
+
+.comparison-status.same {
+  color: var(--accent-2);
+  background: rgba(94, 234, 212, 0.1);
+}
+
+.comparison-status.different,
+.comparison-status.missing_in_b,
+.comparison-status.added_in_b {
+  color: #fecaca;
+  background: rgba(248, 113, 113, 0.12);
+}
+
+@media (max-width: 700px) {
+  .part-card-header {
+    flex-direction: column;
+  }
+}

@@ -13,6 +13,7 @@ from quotes.db import Comparison, Equipment, LineItem, Project, Quote, Vendor, s
 from quotes.drawings import compare_drawings
 from quotes.ingest import ingest_pdf
 from quotes.match import match_items
+from quotes.molding import compare_mold_quotes, parse_mold_quote
 from quotes.parse import ParsedQuote, parse_quote
 
 
@@ -82,6 +83,14 @@ def compare_quote_pdfs(
     right_doc = ingest_pdf(right_data, right_name)
     left = parse_quote(left_doc)
     right = parse_quote(right_doc)
+    left_mold = parse_mold_quote(left_doc.text, left_doc.tables)
+    right_mold = parse_mold_quote(right_doc.text, right_doc.tables)
+    molding = compare_mold_quotes(left_mold, right_mold)
+    if molding["detected"]:
+        left.vendor = left.vendor or left_mold.vendor
+        right.vendor = right.vendor or right_mold.vendor
+        left.total = left_mold.tooling_total
+        right.total = right_mold.tooling_total
     matches = match_items(left.items, right.items)
     paired, missing, added = commercial_rows(matches)
     payload = {
@@ -95,8 +104,30 @@ def compare_quote_pdfs(
         "drawings": compare_drawings(left_doc, right_doc),
         "savings": savings_alerts(right),
         "ingest": {"left": left_doc.backend, "right": right_doc.backend},
+        "molding": molding,
     }
     summary = llm_summary(left, right, payload) or local_summary(left, right, payload)
+    if molding["detected"]:
+        costs_a = molding["left"]["total_with_tryout"]
+        costs_b = molding["right"]["total_with_tryout"]
+        delta = costs_b - costs_a
+        vendor_a = left.vendor or "Vendor A"
+        vendor_b = right.vendor or "Vendor B"
+        if delta < 0:
+            headline = f"{vendor_b} is ${abs(delta):,.0f} lower including tryouts."
+        elif delta > 0:
+            headline = f"{vendor_a} is ${abs(delta):,.0f} lower including tryouts."
+        else:
+            headline = "Both vendors have the same tooling and tryout total."
+        summary.update(
+            {
+                "headline": headline,
+                "recommendation": (
+                    f"Review {molding['difference_count']} technical field difference"
+                    f"{'s' if molding['difference_count'] != 1 else ''} by part before selecting the lower bid."
+                ),
+            }
+        )
     payload["summary"] = summary
 
     db = session()

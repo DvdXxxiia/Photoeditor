@@ -75,6 +75,29 @@
               </div>
             </div>
           </article>
+          <section id="moldingResults" class="molding-results hidden">
+            <article class="result-card">
+              <h2>Injection-molding parts comparison</h2>
+              <p class="hint">Each matched part is compared across configuration, process, finish, price, options, and lead time.</p>
+              <div id="partComparisons" class="part-comparisons"></div>
+            </article>
+            <article class="result-card">
+              <h2>Tryout cost</h2>
+              <div id="tryoutKpis" class="kpi-row"></div>
+            </article>
+            <article class="result-card">
+              <h2>Vendor terms comparison</h2>
+              <div class="table-wrap">
+                <table class="quote-table" id="termsTable">
+                  <thead>
+                    <tr><th>Term</th><th>Vendor A</th><th>Vendor B</th><th>Result</th></tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </article>
+          </section>
+          <section id="equipmentResults">
           <article class="result-card">
             <h2>Matched line items</h2>
             <div class="table-wrap">
@@ -114,11 +137,12 @@
             <h2>Savings detector</h2>
             <ul id="savings"></ul>
           </article>
+          </section>
           <article class="result-card">
             <h2>Procurement assistant</h2>
             <div id="chatLog" class="chat-log"></div>
             <form id="chatForm" class="chat-form">
-              <input id="chatInput" type="text" placeholder="Why is Quote B cheaper?" />
+              <input id="chatInput" type="text" placeholder="Compare tryout cost or payment terms" />
               <button class="btn btn-primary" type="submit">Ask</button>
             </form>
           </article>

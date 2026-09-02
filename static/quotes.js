@@ -19,6 +19,11 @@
     bothQuoted: document.getElementById("bothQuoted"),
     leftIncludes: document.getElementById("leftIncludes"),
     rightScope: document.getElementById("rightScope"),
+    moldingResults: document.getElementById("moldingResults"),
+    partComparisons: document.getElementById("partComparisons"),
+    tryoutKpis: document.getElementById("tryoutKpis"),
+    termsTable: document.querySelector("#termsTable tbody"),
+    equipmentResults: document.getElementById("equipmentResults"),
     matchTable: document.querySelector("#matchTable tbody"),
     missing: document.getElementById("missing"),
     added: document.getElementById("added"),
@@ -38,6 +43,16 @@
     const n = Number(value) || 0;
     const sign = n < 0 ? "-" : "";
     return `${sign}$${Math.abs(n).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? "").replace(/[&<>"']/g, (ch) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;",
+    })[ch]);
   }
 
   function setStatus(text) {
@@ -89,6 +104,87 @@
     return `${sku}${item.description} (${item.qty || 1} @ ${money(item.unit_price || item.ext_price)})`;
   }
 
+  function statusLabel(status) {
+    const labels = {
+      same: "Same",
+      different: "Different",
+      missing_in_b: "Missing in B",
+      added_in_b: "Added in B",
+      not_specified: "Not specified",
+      matched: "Matched",
+    };
+    return labels[status] || status || "—";
+  }
+
+  function renderMolding(molding) {
+    const detected = Boolean(molding?.detected);
+    els.moldingResults.classList.toggle("hidden", !detected);
+    els.equipmentResults.classList.toggle("hidden", detected);
+    if (!detected) return;
+
+    els.partComparisons.innerHTML = "";
+    for (const part of molding.parts || []) {
+      const card = document.createElement("section");
+      card.className = "part-card";
+      const price = part.price || {};
+      card.innerHTML = `
+        <div class="part-card-header">
+          <div>
+            <h3>${escapeHtml(part.name)}</h3>
+            <small>${part.status === "matched" ? `${Math.round((part.match_confidence || 0) * 100)}% part match` : statusLabel(part.status)}</small>
+          </div>
+          <div class="part-price">
+            <span>A ${money(price.left)}</span>
+            <span>B ${money(price.right)}</span>
+            <strong class="${price.difference < 0 ? "down" : price.difference > 0 ? "up" : ""}">${money(price.difference)}</strong>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="quote-table field-table">
+            <thead><tr><th>Feature</th><th>Vendor A</th><th>Vendor B</th><th>Result</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      `;
+      const tbody = card.querySelector("tbody");
+      for (const field of part.fields || []) {
+        const tr = document.createElement("tr");
+        tr.className = `field-${field.status}`;
+        tr.innerHTML = `
+          <th>${escapeHtml(field.label)}</th>
+          <td>${escapeHtml(field.left || "Not specified")}</td>
+          <td>${escapeHtml(field.right || "Not specified")}</td>
+          <td><span class="comparison-status ${escapeHtml(field.status)}">${escapeHtml(statusLabel(field.status))}</span></td>
+        `;
+        tbody.appendChild(tr);
+      }
+      els.partComparisons.appendChild(card);
+    }
+
+    const tryouts = molding.tryouts || {};
+    els.tryoutKpis.innerHTML = `
+      <div class="kpi"><span>Vendor A tryouts</span><strong>${money(tryouts.left)}</strong></div>
+      <div class="kpi"><span>Vendor B tryouts</span><strong>${money(tryouts.right)}</strong></div>
+      <div class="kpi ${tryouts.difference < 0 ? "down" : tryouts.difference > 0 ? "up" : ""}">
+        <span>Tryout difference</span><strong>${money(tryouts.difference)}</strong>
+        <small>${tryouts.percent == null ? "—" : `${tryouts.percent}% vs Vendor A`}</small>
+      </div>
+    `;
+
+    els.termsTable.innerHTML = "";
+    for (const term of molding.terms || []) {
+      const tr = document.createElement("tr");
+      tr.className = `field-${term.status}`;
+      tr.innerHTML = `
+        <th>${escapeHtml(term.label)}</th>
+        <td>${escapeHtml(term.left || "Not specified")}</td>
+        <td>${escapeHtml(term.right || "Not specified")}</td>
+        <td><span class="comparison-status ${escapeHtml(term.status)}">${escapeHtml(statusLabel(term.status))}</span></td>
+      `;
+      els.termsTable.appendChild(tr);
+    }
+  }
+
   function render(data) {
     state.comparison = data;
     els.results.classList.remove("hidden");
@@ -107,13 +203,14 @@
     if (summary.right_excludes?.length) rightScope.push("Excludes: " + summary.right_excludes.join(", "));
     if (summary.right_includes?.length) rightScope.push("Adds: " + summary.right_includes.join(", "));
     fillList(els.rightScope, rightScope, "No unique scope on Quote B.");
+    renderMolding(data.molding);
 
     els.matchTable.innerHTML = "";
     for (const row of data.matches || []) {
       const tr = document.createElement("tr");
       const conf = Math.round((row.confidence || 0) * 100);
       const delta = row.price_delta || 0;
-      tr.innerHTML = `<td>${itemLabel(row.left)}</td><td>${itemLabel(row.right)}</td><td>${conf}%</td><td class="${delta < 0 ? "down" : delta > 0 ? "up" : ""}">${delta ? money(delta) : "same"}</td>`;
+      tr.innerHTML = `<td>${escapeHtml(itemLabel(row.left))}</td><td>${escapeHtml(itemLabel(row.right))}</td><td>${conf}%</td><td class="${delta < 0 ? "down" : delta > 0 ? "up" : ""}">${delta ? money(delta) : "same"}</td>`;
       els.matchTable.appendChild(tr);
     }
     if (!(data.matches || []).length) {
@@ -146,7 +243,9 @@
       "No historical price increase stored for these SKUs yet."
     );
     els.chatLog.innerHTML = "";
-    addChat("assistant", "Ask why a quote is cheaper, what was excluded, or how the drying/storage scope differs.");
+    addChat("assistant", data.molding?.detected
+      ? "Ask about a part's configuration, tryout costs, lead time, or vendor payment terms."
+      : "Ask why a quote is cheaper, what was excluded, or how the scope differs.");
   }
 
   function addChat(role, text) {

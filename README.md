@@ -24,9 +24,14 @@ Upload `Quote_A.pdf` and `Quote_B.pdf`. The app:
 
 1. Reads digital PDFs with **pdfplumber** and **PyMuPDF**, uses OCR when text is missing, and prefers **Azure Document Intelligence** when `AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT` and `AZURE_DOCUMENT_INTELLIGENCE_KEY` are set.
 2. Returns structured quote JSON: `vendor`, `quote_number`, `date`, `items`.
-3. Matches line items with embeddings + a plastics equipment catalog (`GMP180` Dryer = `Drying Unit GMP-180`).
-4. Shows totals, missing/added scope, price deltas, drawing callouts, historical savings, and a procurement summary.
-5. Lets you ask *Why is Quote B cheaper?*
+3. For injection-molding tool quotes, matches parts by part number/name and compares every part across:
+   - configuration, insulation, demolding, inserts, compression, sliders, and gating
+   - PUR, PUR sealing, surface finishing, FIM, and tool temperature
+   - price, options, and lead time
+4. Compares tryout costs separately at the end.
+5. Compares vendor payment terms, delivery terms, warranty, quote validity, and currency.
+6. Also supports equipment line-item matching with embeddings + a plastics equipment catalog (`GMP180` Dryer = `Drying Unit GMP-180`).
+7. Lets you ask about technical differences, tryout cost, or vendor terms.
 
 Compare-by-function example: `PTUN2500 + GMP180` vs `PTUN2000 + GMP250` is treated as the same drying/storage system with different capacity, not as unrelated text.
 
