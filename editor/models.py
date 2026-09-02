@@ -37,6 +37,36 @@ class DetectedObject:
         }
 
 
+def clone_detected(obj: DetectedObject) -> DetectedObject:
+    """Deep-copy an object so history frames do not share masks."""
+    return DetectedObject(
+        id=obj.id,
+        label=obj.label,
+        confidence=obj.confidence,
+        bbox=tuple(obj.bbox),
+        color=tuple(obj.color),
+        mask=obj.mask.copy(),
+        source=obj.source,
+    )
+
+
+@dataclass
+class ClipboardItem:
+    """Pixels and mask captured when the user copies an object."""
+
+    pixels: np.ndarray  # BGR uint8, same size as the working image at copy time
+    mask: np.ndarray
+    label: str
+    color: tuple[int, int, int]
+    paste_count: int = 0
+
+
+@dataclass
+class HistoryFrame:
+    image: np.ndarray
+    objects: list[DetectedObject]
+
+
 @dataclass
 class SessionState:
     """In-memory editing session."""
@@ -44,12 +74,23 @@ class SessionState:
     id: str
     image: np.ndarray  # BGR uint8
     objects: list[DetectedObject] = field(default_factory=list)
-    history: list[np.ndarray] = field(default_factory=list)
-    redo_stack: list[np.ndarray] = field(default_factory=list)
+    history: list[HistoryFrame] = field(default_factory=list)
+    redo_stack: list[HistoryFrame] = field(default_factory=list)
     filename: str = "photo.png"
+    clipboard: ClipboardItem | None = None
+
+    def _frame(self) -> HistoryFrame:
+        return HistoryFrame(
+            image=self.image.copy(),
+            objects=[clone_detected(obj) for obj in self.objects],
+        )
+
+    def _restore(self, frame: HistoryFrame) -> None:
+        self.image = frame.image
+        self.objects = [clone_detected(obj) for obj in frame.objects]
 
     def snapshot(self) -> None:
-        self.history.append(self.image.copy())
+        self.history.append(self._frame())
         self.redo_stack.clear()
         if len(self.history) > 40:
             self.history.pop(0)
@@ -57,13 +98,13 @@ class SessionState:
     def undo(self) -> bool:
         if not self.history:
             return False
-        self.redo_stack.append(self.image.copy())
-        self.image = self.history.pop()
+        self.redo_stack.append(self._frame())
+        self._restore(self.history.pop())
         return True
 
     def redo(self) -> bool:
         if not self.redo_stack:
             return False
-        self.history.append(self.image.copy())
-        self.image = self.redo_stack.pop()
+        self.history.append(self._frame())
+        self._restore(self.redo_stack.pop())
         return True

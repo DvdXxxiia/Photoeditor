@@ -202,3 +202,43 @@ def bbox_from_mask(mask: np.ndarray) -> tuple[int, int, int, int] | None:
     x0, x1 = int(xs.min()), int(xs.max())
     y0, y1 = int(ys.min()), int(ys.max())
     return x0, y0, x1 - x0 + 1, y1 - y0 + 1
+
+
+def paste_pixels(
+    dest: np.ndarray,
+    source_pixels: np.ndarray,
+    source_mask: np.ndarray,
+    dx: int,
+    dy: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Copy masked source pixels onto dest, shifted by (dx, dy).
+
+    Pixels that land outside dest are clipped. Returns the new image and a
+    boolean mask of whatever actually landed on dest.
+    """
+    if source_mask.shape[:2] != source_pixels.shape[:2]:
+        raise ValueError("Clipboard mask does not match clipboard pixels")
+    dest_h, dest_w = dest.shape[:2]
+    src_h, src_w = source_pixels.shape[:2]
+    out = dest.copy()
+    new_mask = np.zeros((dest_h, dest_w), dtype=bool)
+    ys, xs = np.where(source_mask.astype(bool))
+    if len(xs) == 0:
+        return out, new_mask
+    ny = ys + int(dy)
+    nx = xs + int(dx)
+    valid = (
+        (ys >= 0)
+        & (ys < src_h)
+        & (xs >= 0)
+        & (xs < src_w)
+        & (ny >= 0)
+        & (ny < dest_h)
+        & (nx >= 0)
+        & (nx < dest_w)
+    )
+    if not np.any(valid):
+        return out, new_mask
+    out[ny[valid], nx[valid]] = source_pixels[ys[valid], xs[valid]]
+    new_mask[ny[valid], nx[valid]] = True
+    return out, new_mask
