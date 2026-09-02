@@ -132,7 +132,15 @@ def _azure_to_document(payload: dict, filename: str) -> IngestedDocument:
             tables.append(grid)
     blocks = []
     for para in result.get("paragraphs") or []:
-        blocks.append({"type": "paragraph", "text": para.get("content") or ""})
+        regions = para.get("boundingRegions") or para.get("bounding_regions") or []
+        page_number = regions[0].get("pageNumber") if regions else None
+        blocks.append(
+            {
+                "type": "paragraph",
+                "page": page_number,
+                "text": para.get("content") or "",
+            }
+        )
     pages = result.get("pages") or []
     return IngestedDocument(
         filename=filename,
@@ -158,15 +166,23 @@ def _ingest_local(data: bytes, filename: str) -> IngestedDocument:
 
         with pdfplumber.open(io.BytesIO(data)) as pdf:
             page_count = len(pdf.pages)
-            for page in pdf.pages[:MAX_PAGES]:
+            for page_number, page in enumerate(pdf.pages[:MAX_PAGES], start=1):
                 extracted = page.extract_text() or ""
                 if extracted:
                     text_parts.append(extracted)
-                    blocks.append({"type": "page_text", "text": extracted})
+                    blocks.append({"type": "page_text", "page": page_number, "text": extracted})
                 for table in page.extract_tables() or []:
                     cleaned = [[str(cell or "").strip() for cell in row] for row in table]
                     if any(any(cell for cell in row) for row in cleaned):
                         tables.append(cleaned)
+                        blocks.append(
+                            {
+                                "type": "table",
+                                "page": page_number,
+                                "rows": cleaned,
+                                "text": "\n".join(" | ".join(row) for row in cleaned),
+                            }
+                        )
         backends.append("pdfplumber")
     except Exception:
         logger.exception("pdfplumber ingest failed")
@@ -183,6 +199,7 @@ def _ingest_local(data: bytes, filename: str) -> IngestedDocument:
             extracted = page.get_text("text") or ""
             if extracted and not pdfplumber_had_text:
                 text_parts.append(extracted)
+                blocks.append({"type": "page_text", "page": index, "text": extracted})
             for img in page.get_images(full=True):
                 images.append({"page": index, "xref": int(img[0]), "width": None, "height": None})
         doc.close()
@@ -221,17 +238,28 @@ def _ingest_ocr(data: bytes, filename: str) -> IngestedDocument | None:
     try:
         doc = fitz.open(stream=data, filetype="pdf")
         chunks = []
+        blocks = []
         for index, page in enumerate(doc, start=1):
             if index > min(MAX_PAGES, 8):
                 break
             pix = page.get_pixmap(dpi=140)
             image = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-            chunks.append(pytesseract.image_to_string(image) or "")
+            page_text = pytesseract.image_to_string(image) or ""
+            chunks.append(page_text)
+            if page_text.strip():
+                blocks.append({"type": "page_text", "page": index, "text": page_text})
         doc.close()
         text = "\n".join(chunks).strip()
         if not text:
             return None
-        return IngestedDocument(filename=filename, page_count=len(chunks), text=text, backend="ocr", ocr_used=True)
+        return IngestedDocument(
+            filename=filename,
+            page_count=len(chunks),
+            text=text,
+            blocks=blocks,
+            backend="ocr",
+            ocr_used=True,
+        )
     except Exception:
         logger.exception("OCR ingest failed")
         return None

@@ -138,11 +138,16 @@ def _llm_answer(question: str, payload: dict) -> str | None:
                 "messages": [
                     {
                         "role": "system",
-                        "content": "You are a procurement assistant. Answer only from the quote comparison JSON.",
+                        "content": (
+                            "You are a senior injection molding tooling sourcing engineer. "
+                            "Answer only from the normalized per-part matrix. Do not discuss "
+                            "filenames, image counts, or document metadata. Cite page-numbered "
+                            "source evidence when it is available and state Not specified for gaps."
+                        ),
                     },
                     {
                         "role": "user",
-                        "content": question + "\n\n" + json.dumps(payload)[:14000],
+                        "content": question + "\n\n" + json.dumps(payload.get("sourcing") or payload)[:18000],
                     },
                 ],
             },
@@ -156,6 +161,32 @@ def _llm_answer(question: str, payload: dict) -> str | None:
 
 def _local_answer(question: str, payload: dict) -> str:
     q = question.lower()
+    sourcing = payload.get("sourcing") or {}
+    if sourcing.get("detected"):
+        if "tryout" in q or "trial" in q:
+            rows = [
+                row for row in sourcing.get("tryouts") or []
+                if row.get("left") is not None or row.get("right") is not None
+            ]
+            return "Tryout comparison: " + "; ".join(_sourcing_row_text(row) for row in rows) + "."
+        if any(word in q for word in ("term", "payment", "warranty", "ownership", "maintenance", "storage", "penalt", "delivery")):
+            rows = [
+                row for row in sourcing.get("terms") or []
+                if row.get("status") not in {"same", "not_specified"}
+            ]
+            return "Commercial terms: " + ("; ".join(_sourcing_row_text(row) for row in rows) or "no differences detected") + "."
+        if any(word in q for word in ("scope", "cavit", "steel", "runner", "insulation", "demold", "insert", "compression", "slider", "gating", "pur", "surface", "fim", "temperature", "validation", "part")):
+            rows = []
+            for part in sourcing.get("parts") or []:
+                for row in part.get("technical") or []:
+                    if row.get("status") not in {"same", "not_specified"}:
+                        rows.append(f"{part.get('part')}: {_sourcing_row_text(row)}")
+            return "Technical differences: " + ("; ".join(rows[:12]) or "none detected") + "."
+        summary = sourcing.get("summary") or {}
+        return (
+            f"Recommended vendor: {summary.get('recommended_vendor', 'Not specified')}. "
+            f"Potential risks: {', '.join(summary.get('potential_risks') or []) or 'none identified'}."
+        )
     molding = payload.get("molding") or {}
     if molding.get("detected"):
         if "tryout" in q or "trial" in q:
@@ -240,3 +271,15 @@ def _local_answer(question: str, payload: dict) -> str:
         )
     summary = payload.get("summary") or {}
     return summary.get("recommendation") or summary.get("headline") or "Compare the matched line items in the dashboard."
+
+
+def _sourcing_row_text(row: dict) -> str:
+    def value(side: str) -> str:
+        raw = row.get(side)
+        text = "Not specified" if raw in {None, ""} else str(raw)
+        evidence = row.get(f"{side}_evidence") or {}
+        if evidence.get("text"):
+            text += f' (page {evidence.get("page", 1)}: “{evidence["text"]}”)'
+        return text
+
+    return f"{row.get('label')}: A = {value('left')}; B = {value('right')}"

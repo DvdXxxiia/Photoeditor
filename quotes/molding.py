@@ -43,7 +43,7 @@ FIELD_ALIASES: dict[str, tuple[str, ...]] = {
 }
 
 GLOBAL_ALIASES: dict[str, tuple[str, ...]] = {
-    "tryout_cost": ("tryout cost", "try-out cost", "tool trial cost", "trial cost", "tryout"),
+    "tryout_cost": ("total tryout cost", "tryout cost", "try-out cost", "tool trial cost", "trial cost", "tryout"),
     "payment_terms": ("payment terms", "payment condition", "payment"),
     "delivery_terms": ("delivery terms", "incoterms", "incoterm"),
     "warranty": ("warranty", "guarantee"),

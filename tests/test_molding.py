@@ -100,7 +100,8 @@ def test_service_returns_molding_dashboard_and_totals():
     assert molding["right"]["tooling_total"] == 195000
     assert molding["left"]["total_with_tryout"] == 216500
     assert molding["right"]["total_with_tryout"] == 213500
-    assert "lower including tryouts" in payload["summary"]["headline"]
+    assert "Recommended vendor" in payload["summary"]["headline"]
+    assert payload["sourcing"]["detected"] is True
 
 
 def test_table_form_can_extract_molding_fields():

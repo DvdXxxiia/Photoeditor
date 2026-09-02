@@ -19,6 +19,12 @@
     bothQuoted: document.getElementById("bothQuoted"),
     leftIncludes: document.getElementById("leftIncludes"),
     rightScope: document.getElementById("rightScope"),
+    sourcingResults: document.getElementById("sourcingResults"),
+    sourcingSummary: document.getElementById("sourcingSummary"),
+    sourcingParts: document.getElementById("sourcingParts"),
+    sourcingCosts: document.querySelector("#sourcingCosts tbody"),
+    sourcingTryouts: document.querySelector("#sourcingTryouts tbody"),
+    sourcingTerms: document.querySelector("#sourcingTerms tbody"),
     moldingResults: document.getElementById("moldingResults"),
     partComparisons: document.getElementById("partComparisons"),
     tryoutKpis: document.getElementById("tryoutKpis"),
@@ -29,7 +35,6 @@
     added: document.getElementById("added"),
     functionNotes: document.getElementById("functionNotes"),
     functionShared: document.getElementById("functionShared"),
-    drawings: document.getElementById("drawings"),
     savings: document.getElementById("savings"),
     chatLog: document.getElementById("chatLog"),
     chatForm: document.getElementById("chatForm"),
@@ -116,6 +121,105 @@
     return labels[status] || status || "—";
   }
 
+  function evidenceHtml(evidence) {
+    if (!evidence?.text) return `<small class="source-evidence missing">No source evidence</small>`;
+    return `<small class="source-evidence">Page ${Number(evidence.page) || 1}: “${escapeHtml(evidence.text)}”</small>`;
+  }
+
+  function sourcingValue(value, evidence, isMoney = false) {
+    const rendered = value == null || value === ""
+      ? "Not specified"
+      : isMoney && typeof value === "number"
+        ? money(value)
+        : escapeHtml(value);
+    return `<span>${rendered}</span>${evidenceHtml(evidence)}`;
+  }
+
+  function renderMatrixRows(tbody, rows, moneyValues = false) {
+    tbody.innerHTML = "";
+    for (const row of rows || []) {
+      const tr = document.createElement("tr");
+      tr.className = `field-${row.status}`;
+      const difference = row.difference_amount == null
+        ? row.difference
+        : row.unit === "count"
+          ? String(row.difference_amount)
+          : money(row.difference_amount);
+      const showMoney = (moneyValues || row.is_money) && row.unit !== "count";
+      tr.innerHTML = `
+        <th>${escapeHtml(row.label)}</th>
+        <td>${sourcingValue(row.left, row.left_evidence, showMoney)}</td>
+        <td>${sourcingValue(row.right, row.right_evidence, showMoney)}</td>
+        <td>${escapeHtml(difference || "—")}</td>
+        <td>${escapeHtml(row.higher_scope || "—")}</td>
+        <td><span class="impact impact-${String(row.commercial_impact || "none").toLowerCase()}">${escapeHtml(row.commercial_impact || row.higher_scope || "—")}</span></td>
+      `;
+      tbody.appendChild(tr);
+    }
+  }
+
+  function renderSourcing(sourcing) {
+    const detected = Boolean(sourcing?.detected);
+    els.sourcingResults.classList.toggle("hidden", !detected);
+    if (!detected) return false;
+    els.moldingResults.classList.add("hidden");
+    els.equipmentResults.classList.add("hidden");
+
+    const summary = sourcing.summary || {};
+    const summaryItems = [
+      ["Lowest tool cost", summary.lowest_tool_cost],
+      ["Lowest tryout cost", summary.lowest_tryout_cost],
+      ["Best technical scope", summary.best_technical_scope],
+      ["Best commercial terms", summary.best_commercial_terms],
+      ["Recommended vendor", summary.recommended_vendor],
+    ];
+    els.sourcingSummary.innerHTML = summaryItems.map(([label, value]) => `
+      <div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value || "Not specified")}</strong></div>
+    `).join("");
+    for (const [label, items] of [
+      ["Missing from Vendor A", summary.missing_from_vendor_a],
+      ["Missing from Vendor B", summary.missing_from_vendor_b],
+      ["Potential risks", summary.potential_risks],
+    ]) {
+      const div = document.createElement("div");
+      div.className = "summary-list";
+      const title = document.createElement("span");
+      title.textContent = label;
+      const text = document.createElement("p");
+      text.textContent = items?.length ? items.join("; ") : "None identified";
+      div.append(title, text);
+      els.sourcingSummary.appendChild(div);
+    }
+
+    els.sourcingParts.innerHTML = "";
+    for (const part of sourcing.parts || []) {
+      const card = document.createElement("section");
+      card.className = "part-card";
+      card.innerHTML = `
+        <div class="part-card-header">
+          <div><h3>${escapeHtml(part.part || "Unnamed part")}</h3>
+          <small>${Math.round((part.match_confidence || 0) * 100)}% part match${part.part_number ? ` · ${escapeHtml(part.part_number)}` : ""}</small></div>
+        </div>
+        <div class="table-wrap">
+          <table class="quote-table sourcing-table">
+            <thead><tr><th>Category</th><th>Vendor A</th><th>Vendor B</th><th>Difference</th><th>Higher scope</th><th>Commercial impact</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      `;
+      const rows = [
+        ...(part.technical || []),
+        ...(part.costs || []).map((row) => ({ ...row, label: `Cost · ${row.label}`, is_money: true })),
+      ];
+      renderMatrixRows(card.querySelector("tbody"), rows);
+      els.sourcingParts.appendChild(card);
+    }
+    renderMatrixRows(els.sourcingCosts, sourcing.costs, true);
+    renderMatrixRows(els.sourcingTryouts, sourcing.tryouts, true);
+    renderMatrixRows(els.sourcingTerms, sourcing.terms);
+    return true;
+  }
+
   function renderMolding(molding) {
     const detected = Boolean(molding?.detected);
     els.moldingResults.classList.toggle("hidden", !detected);
@@ -190,8 +294,8 @@
     els.results.classList.remove("hidden");
     const totals = data.totals || {};
     els.kpiRow.innerHTML = `
-      <div class="kpi"><span>Quote A</span><strong>${money(totals.left)}</strong><small>${data.left.vendor || "Vendor A"} ${data.left.quote_number || ""}</small></div>
-      <div class="kpi"><span>Quote B</span><strong>${money(totals.right)}</strong><small>${data.right.vendor || "Vendor B"} ${data.right.quote_number || ""}</small></div>
+      <div class="kpi"><span>Quote A</span><strong>${money(totals.left)}</strong><small>${escapeHtml(data.left.vendor || "Vendor A")} ${escapeHtml(data.left.quote_number || "")}</small></div>
+      <div class="kpi"><span>Quote B</span><strong>${money(totals.right)}</strong><small>${escapeHtml(data.right.vendor || "Vendor B")} ${escapeHtml(data.right.quote_number || "")}</small></div>
       <div class="kpi ${totals.difference < 0 ? "down" : totals.difference > 0 ? "up" : ""}"><span>Difference</span><strong>${money(totals.difference)}</strong><small>${totals.percent}% vs Quote A</small></div>
     `;
     const summary = data.summary || {};
@@ -204,6 +308,7 @@
     if (summary.right_includes?.length) rightScope.push("Adds: " + summary.right_includes.join(", "));
     fillList(els.rightScope, rightScope, "No unique scope on Quote B.");
     renderMolding(data.molding);
+    const sourcingDetected = renderSourcing(data.sourcing);
 
     els.matchTable.innerHTML = "";
     for (const row of data.matches || []) {
@@ -233,7 +338,6 @@
     const fn = data.functions || {};
     els.functionNotes.textContent = (fn.notes || []).join(". ") || "Configurations cover the same functions.";
     els.functionShared.textContent = `Both systems provide: ${(fn.shared || []).join(", ") || "—"}.`;
-    fillList(els.drawings, data.drawings?.highlights || [], "No drawing callouts found.");
     fillList(
       els.savings,
       (data.savings || []).map(
@@ -243,8 +347,10 @@
       "No historical price increase stored for these SKUs yet."
     );
     els.chatLog.innerHTML = "";
-    addChat("assistant", data.molding?.detected
-      ? "Ask about a part's configuration, tryout costs, lead time, or vendor payment terms."
+    addChat("assistant", sourcingDetected
+      ? "Ask about cavities, steel, hot runners, technical scope, costs, tryouts, risks, or vendor terms."
+      : data.molding?.detected
+        ? "Ask about a part's configuration, tryout costs, lead time, or vendor payment terms."
       : "Ask why a quote is cheaper, what was excluded, or how the scope differs.");
   }
 
