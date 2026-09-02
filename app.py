@@ -1,4 +1,4 @@
-"""FastAPI app for the interactive photo editor."""
+"""FastAPI app for Office Applications: photo editor and PDF compare."""
 
 from __future__ import annotations
 
@@ -27,11 +27,12 @@ from editor.operations import (
     resize_for_edit,
 )
 from editor.session import SessionStore
+from office.pdf import PdfError, compare_pdf_bytes
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Photo Editor", version="1.0.0")
+app = FastAPI(title="Office Applications", version="1.1.0")
 store = SessionStore()
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -140,8 +141,18 @@ def _pasted_label(base: str, paste_count: int) -> str:
 
 
 @app.get("/")
-def index() -> FileResponse:
+def home() -> FileResponse:
+    return FileResponse("static/home.html")
+
+
+@app.get("/photo")
+def photo_editor() -> FileResponse:
     return FileResponse("static/index.html")
+
+
+@app.get("/pdf")
+def pdf_compare_page() -> FileResponse:
+    return FileResponse("static/pdf.html")
 
 
 @app.post("/api/session")
@@ -404,9 +415,28 @@ def flatten(session_id: str, body: FlattenBody) -> dict:
     return _session_payload(session)
 
 
+@app.post("/api/pdf/compare")
+async def pdf_compare(
+    left: UploadFile = File(...),
+    right: UploadFile = File(...),
+) -> dict:
+    left_data = await left.read()
+    right_data = await right.read()
+    try:
+        result = compare_pdf_bytes(
+            left_data,
+            right_data,
+            left_name=left.filename or "left.pdf",
+            right_name=right.filename or "right.pdf",
+        )
+    except PdfError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return result.to_dict()
+
+
 @app.get("/api/health")
 def health() -> dict:
-    return {"ok": True, "vlm": vlm_backend()}
+    return {"ok": True, "vlm": vlm_backend(), "apps": ["photo", "pdf"]}
 
 
 if __name__ == "__main__":

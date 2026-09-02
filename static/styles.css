@@ -39,7 +39,7 @@ body {
 .topbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 16px;
   padding: 12px 18px;
   border-bottom: 1px solid var(--line);
@@ -51,6 +51,8 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
+  color: inherit;
+  text-decoration: none;
 }
 
 .brand p {
@@ -73,6 +75,10 @@ body {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.top-actions {
+  margin-left: auto;
 }
 
 .btn,
@@ -369,5 +375,237 @@ input[type="color"] {
   .topbar {
     flex-direction: column;
     align-items: stretch;
+  }
+}
+
+.app-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-right: auto;
+}
+
+.app-nav a {
+  padding: 8px 12px;
+  border-radius: 10px;
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 13px;
+  border: 1px solid transparent;
+}
+
+.app-nav a:hover {
+  color: var(--text);
+  border-color: rgba(139, 124, 255, 0.35);
+}
+
+.app-nav a.active {
+  color: var(--text);
+  background: #2a2550;
+  border-color: rgba(139, 124, 255, 0.5);
+}
+
+.hub {
+  flex: 1;
+  overflow: auto;
+  padding: 48px 24px 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.hub-intro {
+  width: min(860px, 100%);
+  margin-bottom: 28px;
+}
+
+.hub-intro h1 {
+  margin: 0 0 8px;
+  font-size: 34px;
+}
+
+.hub-intro p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+  max-width: 560px;
+}
+
+.hub-grid {
+  width: min(860px, 100%);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.hub-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 22px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  color: inherit;
+  text-decoration: none;
+  box-shadow: var(--shadow);
+}
+
+.hub-card:hover {
+  border-color: rgba(139, 124, 255, 0.45);
+}
+
+.hub-card h2 {
+  margin: 0;
+  font-size: 18px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text);
+}
+
+.hub-card p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+  flex: 1;
+}
+
+.hub-go {
+  color: var(--accent-2);
+  font-size: 13px;
+}
+
+.hub-icon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: #2a2550;
+}
+
+.hub-icon svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.pdf-shell {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 20px 20px 32px;
+}
+
+.pdf-panes,
+.pdf-summaries,
+.pdf-diff {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.pdf-pane h2 {
+  margin-bottom: 8px;
+}
+
+.pdf-drop {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 140px;
+  padding: 22px;
+  border-radius: 16px;
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+  background: var(--bg-2);
+  cursor: pointer;
+}
+
+.pdf-drop strong {
+  font-size: 15px;
+}
+
+.pdf-drop span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.pdf-drop.dragover,
+.pdf-drop.has-file {
+  border-color: rgba(139, 124, 255, 0.55);
+  background: #1c1a33;
+}
+
+.pdf-results {
+  margin-top: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.result-card {
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px 18px;
+}
+
+.result-card ul {
+  margin: 0;
+  padding-left: 18px;
+  line-height: 1.5;
+}
+
+.result-card .empty-item {
+  list-style: none;
+  margin-left: -18px;
+  color: var(--muted);
+}
+
+.result-overview p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.change-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.change-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.change-row div {
+  background: var(--bg-3);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.change-row span {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.change-row p {
+  margin: 0;
+  line-height: 1.45;
+}
+
+@media (max-width: 700px) {
+  .change-row {
+    grid-template-columns: 1fr;
   }
 }

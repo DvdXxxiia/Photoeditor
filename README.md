@@ -1,6 +1,9 @@
-# Photo Editor
+# Office Applications
 
-A local web app for uploading a photo, identifying objects in it, editing or deleting those objects, and drawing on top of the image.
+A local web app with two separate tools:
+
+- **Photo Editor** — upload a photo, identify objects, edit or delete them, and draw on top.
+- **PDF Compare** — upload two PDF documents, get a summary of each, and see what differs.
 
 ## Run
 
@@ -10,6 +13,12 @@ python app.py
 ```
 
 Then open [http://127.0.0.1:8000](http://127.0.0.1:8000).
+
+- Home: `/`
+- Photo Editor: `/photo`
+- PDF Compare: `/pdf`
+
+## Photo Editor
 
 The first **Identify objects** run uses a vision-language model so names are semantic (`ornamental metal fence`, `window security grille`) instead of color fragments (`blue line`).
 
@@ -21,8 +30,6 @@ The first Florence-2 run downloads the model weights. Set `PHOTOEDITOR_DISABLE_V
 
 You can still add extra regions with the magic wand or box tool.
 
-## What you can do
-
 - **Upload** a JPG, PNG, or similar image (drag and drop works too).
 - **Identify objects** to outline things the detector finds.
 - **Select** an object, then change brightness, contrast, saturation, blur, grayscale, pixelate, invert, sharpen, or tint.
@@ -32,6 +39,15 @@ You can still add extra regions with the magic wand or box tool.
 - **Undo / Redo** photo edits (not the live brush strokes).
 
 Keyboard: `V` select, `W` wand, `M` box, `B` brush, `E` eraser, `Ctrl+C` copy, `Ctrl+V` paste, `Ctrl+Z` undo, `Delete` remove object.
+
+## PDF Compare
+
+Upload two PDFs on `/pdf`, then **Summarize & compare**.
+
+- Each document gets an extractive summary (main sentences in document order).
+- The comparison lists statements only in the first PDF, only in the second, and wording that changed.
+- If `OPENAI_API_KEY` is set (and VLM is not disabled), GPT-4o writes the summaries and difference lists. Otherwise the built-in comparer is used.
+- Text is read from the PDF. Scanned image-only PDFs are not supported yet.
 
 ## Tests
 
