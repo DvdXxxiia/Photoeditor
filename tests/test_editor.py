@@ -18,15 +18,19 @@ from editor.operations import (
     resize_for_edit,
 )
 from editor.detect import (
+    coarse_foreground_regions,
     grabcut_mask,
     hit_test,
     identify_objects,
+    is_line_art,
     looks_like_line_diagram,
     looks_photographic,
     magic_wand_mask,
     overlay_png,
+    propose_regions,
     region_masks,
 )
+from editor.vlm import SemanticBox
 from editor.session import SessionStore
 
 
@@ -187,15 +191,14 @@ def test_identify_parts_not_background_area():
         assert obj.mask.sum() < 0.25 * h * w
 
 
-def test_device_icon_finds_blue_parts():
+def test_device_icon_finds_parts():
     image = cv2.imread(str(FIXTURES / "device-icon.png"))
     assert image is not None
     assert not looks_photographic(image)
     objects = identify_objects(image)
     assert objects
     assert all(obj.source != "region" for obj in objects)
-    assert any("blue" in obj.label for obj in objects)
-    assert all(obj.bbox[2] * obj.bbox[3] < 0.7 * image.shape[0] * image.shape[1] for obj in objects)
+    assert all(obj.bbox[2] * obj.bbox[3] < 0.92 * image.shape[0] * image.shape[1] for obj in objects)
 
 
 def test_plant_diagram_finds_units_not_page():
@@ -218,4 +221,46 @@ def test_diagram_ignores_yolo_false_positives(monkeypatch: pytest.MonkeyPatch):
     objects = identify_objects(image)
     assert objects
     assert all(obj.source != "yolo" for obj in objects)
+
+
+def test_lattice_is_one_drawing_not_many_lines():
+    image = cv2.imread(str(FIXTURES / "lattice-icon.png"))
+    assert image is not None
+    assert is_line_art(image)
+    regions = coarse_foreground_regions(image)
+    assert len(regions) == 1
+    x, y, w, h = regions[0].bbox
+    assert w * h < 0.95 * image.shape[0] * image.shape[1]
+    assert regions[0].area > 200
+
+
+def test_lattice_gets_semantic_vlm_name(monkeypatch: pytest.MonkeyPatch):
+    image = cv2.imread(str(FIXTURES / "lattice-icon.png"))
+    monkeypatch.setattr("editor.vlm.vlm_enabled", lambda: True)
+    monkeypatch.setattr("editor.vlm.dense_detect", lambda _image: [])
+    monkeypatch.setattr(
+        "editor.vlm.caption_crop",
+        lambda _image, _bbox: ("ornamental metal fence", 0.91),
+    )
+    objects = identify_objects(image)
+    assert objects
+    assert objects[0].label == "ornamental metal fence"
+    assert objects[0].source == "vlm"
+    assert objects[0].to_dict()["bbox"] == list(objects[0].bbox)
+
+
+def test_dense_vlm_boxes_become_objects(monkeypatch: pytest.MonkeyPatch):
+    image = np.full((80, 60, 3), 240, dtype=np.uint8)
+    image[10:50, 8:50] = 20
+    monkeypatch.setattr("editor.vlm.vlm_enabled", lambda: True)
+    monkeypatch.setattr("editor.detect.looks_photographic", lambda _image: True)
+    monkeypatch.setattr(
+        "editor.vlm.dense_detect",
+        lambda _image: [SemanticBox("window security grille", 0.84, (8, 10, 50, 50))],
+    )
+    objects = identify_objects(image)
+    assert len(objects) == 1
+    assert objects[0].label == "window security grille"
+    assert objects[0].to_dict()["bbox"][2] > 0
+
 

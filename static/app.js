@@ -226,7 +226,7 @@
 
   async function identify() {
     if (!state.sessionId) return;
-    setBusy(true, "Identifying objects…");
+    setBusy(true, "Recognizing objects…");
     try {
       const data = await api(`/api/session/${state.sessionId}/detect`, { method: "POST" });
       applySession(data, { clearSelection: true });

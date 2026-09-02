@@ -31,7 +31,7 @@ class DetectedObject:
             "id": self.id,
             "label": self.label,
             "confidence": round(float(self.confidence), 3),
-            "bbox": {"x": int(x), "y": int(y), "w": int(w), "h": int(h)},
+            "bbox": [int(x), int(y), int(w), int(h)],
             "color": list(self.color),
             "source": self.source,
         }

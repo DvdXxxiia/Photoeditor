@@ -531,8 +531,13 @@ def _object_from_mask(
 def _objects_from_parts(parts: list[_Part]) -> list[DetectedObject]:
     objects: list[DetectedObject] = []
     for part in parts:
-        label = f"{color_name(part.mean_bgr)} {shape_name(part)}"
-        obj = _object_from_mask(part.mask, len(objects) + 1, label, 0.7, part.source)
+        obj = _object_from_mask(
+            part.mask,
+            len(objects) + 1,
+            f"object {len(objects) + 1}",
+            0.55,
+            part.source,
+        )
         if obj:
             objects.append(obj)
     return objects
@@ -591,28 +596,135 @@ def detect_regions(image: np.ndarray) -> list[DetectedObject]:
     return objects
 
 
-def identify_objects(image: np.ndarray) -> list[DetectedObject]:
-    """Find discrete objects. Skip YOLO on diagrams so a false class cannot hide parts."""
+def is_line_art(image: np.ndarray) -> bool:
+    """True for B/W icons and schematics where color fragments are not objects."""
+    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    sat = float(hsv[:, :, 1].mean())
+    if sat > 28:
+        return False
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    light = float((gray > 220).mean())
+    dark = float((gray < 50).mean())
+    return light + dark > 0.30 or (max(image.shape[:2]) < 180 and sat < 22)
+
+
+def coarse_foreground_regions(image: np.ndarray) -> list[_Part]:
+    """One blob per connected drawing, so a lattice stays a single object."""
+    h, w = image.shape[:2]
+    bg = background_mask(image)
+    content = (~bg).astype(np.uint8) * 255
+    k = max(3, min(h, w) // 30)
+    if k % 2 == 0:
+        k += 1
+    closed = cv2.morphologyEx(
+        content,
+        cv2.MORPH_CLOSE,
+        cv2.getStructuringElement(cv2.MORPH_RECT, (k, k)),
+    )
+    num, cc, stats, _ = cv2.connectedComponentsWithStats((closed > 0).astype(np.uint8), 8)
+    parts: list[_Part] = []
+    min_area = max(24, int(h * w * 0.008))
+    for i in range(1, num):
+        area = int(stats[i, cv2.CC_STAT_AREA])
+        if area < min_area:
+            continue
+        x, y, bw, bh = (int(stats[i, c]) for c in range(4))
+        if bw * bh > 0.96 * h * w:
+            continue
+        region = (cc == i) & (~bg)
+        part = _part_from_mask(region, image, "object")
+        if part:
+            parts.append(part)
+    return parts
+
+
+def propose_regions(image: np.ndarray) -> list[_Part]:
+    """Stage 1: boxes/masks only. Naming happens in the VLM stage."""
     if looks_like_line_diagram(image):
-        units = diagram_unit_masks(image)
-        strokes = color_stroke_masks(image)
-        parts = _nms_parts(units + strokes)
-        objects = _objects_from_parts(parts)
-        if objects:
-            return objects
-        logger.info("Diagram part detector found nothing; using color regions")
-        return detect_regions(image)
+        parts = diagram_unit_masks(image) + color_stroke_masks(image)
+        if parts:
+            return parts
+    if is_line_art(image) or max(image.shape[:2]) < 160:
+        blobs = coarse_foreground_regions(image)
+        if blobs:
+            return blobs
+    parts = color_part_masks(image)
+    if parts:
+        return parts
+    return coarse_foreground_regions(image)
+
+
+def mask_from_xyxy(image: np.ndarray, xyxy: tuple[float, float, float, float]) -> np.ndarray:
+    h, w = image.shape[:2]
+    x1, y1, x2, y2 = [int(round(v)) for v in xyxy]
+    x1, x2 = max(0, min(x1, x2)), min(w, max(x1, x2))
+    y1, y2 = max(0, min(y1, y2)), min(h, max(y1, y2))
+    mask = np.zeros((h, w), dtype=bool)
+    if x2 - x1 < 2 or y2 - y1 < 2:
+        return mask
+    gray = cv2.cvtColor(image[y1:y2, x1:x2], cv2.COLOR_BGR2GRAY)
+    ink = gray < 200
+    if int(ink.sum()) >= 12:
+        mask[y1:y2, x1:x2] = ink
+    else:
+        mask[y1:y2, x1:x2] = True
+    return mask
+
+
+def objects_from_semantic_boxes(image: np.ndarray, boxes) -> list[DetectedObject]:
+    objects: list[DetectedObject] = []
+    for box in boxes:
+        mask = mask_from_xyxy(image, box.bbox_xyxy)
+        obj = _object_from_mask(mask, len(objects) + 1, box.label, box.confidence, "vlm")
+        if obj:
+            objects.append(obj)
+    return objects
+
+
+def objects_from_captioned_parts(image: np.ndarray, parts: list[_Part]) -> list[DetectedObject]:
+    from editor.vlm import caption_crop
+
+    objects: list[DetectedObject] = []
+    for part in parts:
+        named = caption_crop(image, part.bbox)
+        if not named:
+            continue
+        label, confidence = named
+        obj = _object_from_mask(part.mask, len(objects) + 1, label, confidence, "vlm")
+        if obj:
+            objects.append(obj)
+    return objects
+
+
+def identify_objects(image: np.ndarray) -> list[DetectedObject]:
+    """Detect regions, then name them with a vision-language model when available."""
+    from editor.vlm import dense_detect, vlm_enabled
+
+    if vlm_enabled():
+        # Photos: Florence can detect and name in one pass.
+        # Line-art icons/schematics: propose whole objects, then caption crops
+        # so a grille is not split into "blue line" fragments or a false "person".
+        if looks_photographic(image):
+            semantic = dense_detect(image)
+            if semantic:
+                found = objects_from_semantic_boxes(image, semantic)
+                if found:
+                    return found
+        parts = propose_regions(image)
+        captioned = objects_from_captioned_parts(image, parts)
+        if captioned:
+            return captioned
 
     if looks_photographic(image):
         found = detect_yolo(image)
         if found:
             return found
 
-    parts = _nms_parts(color_part_masks(image))
+    parts = propose_regions(image)
     objects = _objects_from_parts(parts)
     if objects:
         return objects
-    logger.info("No discrete objects; falling back to color regions")
+    logger.info("No objects found; using color-region fallback")
     return detect_regions(image)
 
 
