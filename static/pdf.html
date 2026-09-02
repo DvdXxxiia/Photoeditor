@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PDF Compare · Office Applications</title>
+    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <a class="brand" href="/">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <div>
+            <strong>Office Applications</strong>
+            <p>Summarize and compare two PDFs</p>
+          </div>
+        </a>
+        <nav class="app-nav" aria-label="Applications">
+          <a href="/">Home</a>
+          <a href="/photo">Photo Editor</a>
+          <a href="/pdf" class="active">PDF Compare</a>
+        </nav>
+        <div class="top-actions">
+          <button id="compareBtn" class="btn btn-accent" disabled>Summarize &amp; compare</button>
+        </div>
+      </header>
+
+      <main class="pdf-shell">
+        <div class="pdf-panes">
+          <section class="pdf-pane" data-side="left">
+            <h2>First document</h2>
+            <label class="pdf-drop" id="dropLeft">
+              <input id="fileLeft" type="file" accept="application/pdf,.pdf" hidden />
+              <strong id="nameLeft">Drop or choose a PDF</strong>
+              <span id="metaLeft">This is document A.</span>
+            </label>
+          </section>
+          <section class="pdf-pane" data-side="right">
+            <h2>Second document</h2>
+            <label class="pdf-drop" id="dropRight">
+              <input id="fileRight" type="file" accept="application/pdf,.pdf" hidden />
+              <strong id="nameRight">Drop or choose a PDF</strong>
+              <span id="metaRight">This is document B.</span>
+            </label>
+          </section>
+        </div>
+
+        <section id="results" class="pdf-results hidden">
+          <article class="result-card result-overview">
+            <h2>Comparison</h2>
+            <p id="overview"></p>
+            <p class="hint" id="similarity"></p>
+          </article>
+          <div class="pdf-summaries">
+            <article class="result-card">
+              <h2 id="sumLeftTitle">First summary</h2>
+              <ul id="sumLeft"></ul>
+            </article>
+            <article class="result-card">
+              <h2 id="sumRightTitle">Second summary</h2>
+              <ul id="sumRight"></ul>
+            </article>
+          </div>
+          <div class="pdf-diff">
+            <article class="result-card">
+              <h2>Only in the first PDF</h2>
+              <ul id="onlyLeft"></ul>
+            </article>
+            <article class="result-card">
+              <h2>Only in the second PDF</h2>
+              <ul id="onlyRight"></ul>
+            </article>
+          </div>
+          <article class="result-card">
+            <h2>Changed wording</h2>
+            <div id="changes" class="change-list"></div>
+          </article>
+        </section>
+
+        <div id="busy" class="busy hidden">
+          <div class="spinner"></div>
+          <span id="busyText">Reading PDFs…</span>
+        </div>
+      </main>
+
+      <p id="status" class="status" role="status">Upload two PDFs, then summarize and compare them.</p>
+    </div>
+    <script src="/static/pdf.js"></script>
+  </body>
+</html>

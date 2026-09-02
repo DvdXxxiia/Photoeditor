@@ -3,20 +3,25 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Photo Editor</title>
+    <title>Photo Editor · Office Applications</title>
     <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
     <div id="app">
       <header class="topbar">
-        <div class="brand">
+        <a class="brand" href="/">
           <span class="brand-mark" aria-hidden="true"></span>
           <div>
-            <strong>Photo Editor</strong>
-            <p>Identify, edit, delete, and draw</p>
+            <strong>Office Applications</strong>
+            <p>Photo Editor · identify, edit, delete, and draw</p>
           </div>
-        </div>
+        </a>
+        <nav class="app-nav" aria-label="Applications">
+          <a href="/">Home</a>
+          <a href="/photo" class="active">Photo Editor</a>
+          <a href="/pdf">PDF Compare</a>
+        </nav>
         <div class="top-actions">
           <label class="btn btn-primary">
             Upload photo
