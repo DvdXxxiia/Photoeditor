@@ -73,6 +73,65 @@ def test_upload_detect_wand_modify_delete():
     assert overlay.headers["content-type"] == "image/png"
 
 
+def test_copy_paste_duplicates_object():
+    client = TestClient(app_module.app)
+    upload = client.post("/api/session", files={"file": ("red.png", _png_bytes(), "image/png")})
+    session_id = upload.json()["session_id"]
+    assert upload.json()["can_paste"] is False
+
+    empty_paste = client.post(f"/api/session/{session_id}/paste", json={})
+    assert empty_paste.status_code == 400
+
+    wand = client.post(
+        f"/api/session/{session_id}/wand",
+        json={"x": 20, "y": 20, "tolerance": 20},
+    )
+    selected = wand.json()["selected_id"]
+    before = len(wand.json()["objects"])
+
+    missing = client.post(
+        f"/api/session/{session_id}/copy",
+        json={"object_id": "obj-missing"},
+    )
+    assert missing.status_code == 404
+
+    copied = client.post(
+        f"/api/session/{session_id}/copy",
+        json={"object_id": selected},
+    )
+    assert copied.status_code == 200
+    assert copied.json()["can_paste"] is True
+
+    pasted = client.post(f"/api/session/{session_id}/paste", json={})
+    assert pasted.status_code == 200
+    data = pasted.json()
+    assert data["can_paste"] is True
+    assert data["can_undo"] is True
+    assert len(data["objects"]) == before + 1
+    assert data["selected_id"] != selected
+    pasted_obj = next(obj for obj in data["objects"] if obj["id"] == data["selected_id"])
+    assert pasted_obj["source"] == "paste"
+    assert pasted_obj["label"].endswith("copy")
+    orig = next(obj for obj in data["objects"] if obj["id"] == selected)
+    assert pasted_obj["bbox"] != orig["bbox"]
+
+    preview = Image.open(io.BytesIO(client.get(f"/api/session/{session_id}/image").content))
+    ox, oy, ow, oh = orig["bbox"]
+    px, py, pw, ph = pasted_obj["bbox"]
+    src = preview.getpixel((ox + ow // 2, oy + oh // 2))
+    dst = preview.getpixel((px + pw // 2, py + ph // 2))
+    assert src[0] > 150 and dst[0] > 150
+
+    placed = client.post(f"/api/session/{session_id}/paste", json={"x": 55, "y": 20})
+    assert placed.status_code == 200
+    assert len(placed.json()["objects"]) == before + 2
+
+    undone = client.post(f"/api/session/{session_id}/undo")
+    assert undone.status_code == 200
+    assert len(undone.json()["objects"]) == before + 1
+    assert undone.json()["can_paste"] is True
+
+
 def test_flatten_drawings():
     client = TestClient(app_module.app)
     upload = client.post("/api/session", files={"file": ("bg.png", _png_bytes(), "image/png")})

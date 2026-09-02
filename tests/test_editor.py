@@ -15,6 +15,7 @@ from editor.operations import (
     bbox_from_mask,
     flatten_overlay,
     inpaint_object,
+    paste_pixels,
     resize_for_edit,
 )
 from editor.detect import (
@@ -114,6 +115,46 @@ def test_session_undo_redo():
     assert session.redo()
     assert session.image[0, 0, 0] == 9
     assert not session.redo()
+
+
+def test_session_undo_restores_objects():
+    store = SessionStore()
+    session = store.create(_solid((1, 1, 1), 40, 40))
+    mask = np.zeros((40, 40), dtype=bool)
+    mask[4:10, 4:10] = True
+    session.objects = [
+        DetectedObject("obj-1", "block", 1, (4, 4, 6, 6), (1, 2, 3), mask, "wand"),
+    ]
+    session.snapshot()
+    session.objects = []
+    session.image = _solid((9, 9, 9), 40, 40)
+    assert session.undo()
+    assert session.image[0, 0, 0] == 1
+    assert len(session.objects) == 1
+    assert session.objects[0].label == "block"
+    assert session.objects[0].mask[5, 5]
+
+
+def test_paste_pixels_shifts_and_clips():
+    dest = _solid((0, 0, 0), 40, 40)
+    src = _solid((0, 0, 0), 40, 40)
+    mask = np.zeros((40, 40), dtype=bool)
+    mask[5:10, 5:10] = True
+    src[mask] = (0, 0, 255)
+    out, new_mask = paste_pixels(dest, src, mask, 8, 4)
+    assert new_mask[9, 13]
+    assert out[9, 13].tolist() == [0, 0, 255]
+    assert not new_mask[5, 5]
+    assert dest[9, 13].tolist() == [0, 0, 0]
+
+    clipped, clipped_mask = paste_pixels(dest, src, mask, 1000, 0)
+    assert not clipped_mask.any()
+    assert clipped[0, 0].tolist() == [0, 0, 0]
+
+    partial, partial_mask = paste_pixels(dest, src, mask, 32, 0)
+    assert partial_mask.any()
+    assert int(partial_mask.sum()) < int(mask.sum())
+    assert partial[5, 37].tolist() == [0, 0, 255]
 
 
 def test_magic_wand_selects_connected_color():
